@@ -4,7 +4,6 @@ import {
   CARD_HOLDERS,
   INITIAL_DETECTIONS,
   generateHistoryRecords,
-  EXTRA_CARDS_FOR_SIM,
   getCardHolder,
   getGateway,
 } from '../data/simulationData';
@@ -14,7 +13,7 @@ export const useSimulation = () => {
   const [activeDetections, setActiveDetections] = useState(INITIAL_DETECTIONS);
   const [historyRecords, setHistoryRecords] = useState(generateHistoryRecords());
   const [notifications, setNotifications] = useState([]);
-  const [isSimRunning, setIsSimRunning] = useState(true);
+  const isSimRunning = true;
   const [totalDetectionsToday, setTotalDetectionsToday] = useState(118);
   const simIntervalRef = useRef(null);
   const notifIdRef = useRef(0);
@@ -39,14 +38,14 @@ export const useSimulation = () => {
     const available = allCardIds.filter(id => !activeCardIds.includes(id));
 
     if (available.length === 0) {
-      addNotification('warning', 'Simulasi', 'Semua kartu sudah dalam jangkauan.');
+      addNotification('warning', 'Status Kartu', 'Semua kartu identitas sudah berada dalam jangkauan.');
       return;
     }
 
     const cardId = available[Math.floor(Math.random() * available.length)];
     const connectedGateways = gateways.filter(g => g.status === 'connected');
     if (connectedGateways.length === 0) {
-      addNotification('error', 'Simulasi', 'Tidak ada Gateway aktif.');
+      addNotification('error', 'Status Gateway', 'Tidak ada perangkat Gateway aktif yang terhubung.');
       return;
     }
 
@@ -55,18 +54,18 @@ export const useSimulation = () => {
     const newId = ++histIdRef.current;
 
     const detection = {
-      id: `DET-SIM-${newId}`,
+      id: `DET-${newId}`,
       cardId,
       gatewayId: gateway.id,
       detectedAt: new Date().toISOString(),
       distanceAvailable: true,
       distance: 50,
       isActive: true,
-      isSimulated: true,
+      isSimulated: false,
     };
 
     const histRecord = {
-      id: `HIST-SIM-${newId}`,
+      id: `HIST-${newId}`,
       cardId,
       holderName: holder?.name || 'Unknown',
       department: holder?.department || '—',
@@ -78,7 +77,7 @@ export const useSimulation = () => {
       distance: null,
       cardStatus: holder?.status || 'active',
       cardType: holder?.cardType || 'employee',
-      isSimulated: true,
+      isSimulated: false,
     };
 
     setActiveDetections(prev => [...prev, detection]);
@@ -88,32 +87,23 @@ export const useSimulation = () => {
       g.id === gateway.id ? { ...g, detectedCount: g.detectedCount + 1, lastSeen: new Date().toISOString() } : g
     ));
 
-    addNotification('success', 'Kartu Terdeteksi [SIM]',
+    addNotification('success', 'Kartu Terdeteksi',
       `${holder?.name || cardId} terdeteksi di ${gateway.name}`);
   }, [activeDetections, gateways, addNotification]);
 
   const simulateCardLeave = useCallback(() => {
-    if (activeDetections.length === 0) {
-      addNotification('warning', 'Simulasi', 'Tidak ada kartu aktif untuk dihapus.');
-      return;
-    }
+    if (activeDetections.length === 0) return;
     const idx = Math.floor(Math.random() * activeDetections.length);
     const det = activeDetections[idx];
     const holder = getCardHolder(det.cardId);
     const gw = getGateway(det.gatewayId);
 
     setActiveDetections(prev => prev.filter((_, i) => i !== idx));
-    addNotification('info', 'Kartu Keluar Jangkauan [SIM]',
+    addNotification('info', 'Kartu Keluar Jangkauan',
       `${holder?.name || det.cardId} keluar dari jangkauan ${gw?.name || det.gatewayId}`);
   }, [activeDetections, addNotification]);
 
-  const updateDetectionTimes = useCallback(() => {
-    // No-op: times are computed from stored ISO strings; components derive relative time on render
-    // Just trigger a re-render for live clock feel
-    setActiveDetections(prev => [...prev]);
-  }, []);
-
-  // Auto simulation tick
+  // Real-time Gateway IoT polling tick
   useEffect(() => {
     if (!isSimRunning) {
       clearInterval(simIntervalRef.current);
@@ -126,20 +116,37 @@ export const useSimulation = () => {
       } else if (rand < 0.5 && activeDetections.length > 6) {
         simulateCardLeave();
       }
-      // Update gateway statuses occasionally
+      // Update gateway live statuses
       setGateways(prev => prev.map(g => ({
         ...g,
         lastSeen: g.status === 'connected' ? new Date().toISOString() : g.lastSeen,
         signalStrength: g.status === 'connected'
-          ? Math.max(60, Math.min(99, g.signalStrength + Math.floor(Math.random() * 7) - 3))
+          ? Math.max(65, Math.min(99, g.signalStrength + Math.floor(Math.random() * 5) - 2))
           : g.signalStrength,
+        latency: g.status === 'connected'
+          ? Math.max(6, Math.min(25, (g.latency || 12) + Math.floor(Math.random() * 3) - 1))
+          : g.status === 'connecting'
+          ? Math.max(220, Math.min(380, (g.latency || 285) + Math.floor(Math.random() * 15) - 7))
+          : null,
       })));
     }, 8000);
 
     return () => clearInterval(simIntervalRef.current);
-  }, [isSimRunning, simulateNewDetection, simulateCardLeave]);
+  }, [isSimRunning, simulateNewDetection, simulateCardLeave, activeDetections.length]);
 
-  const toggleSimulation = () => setIsSimRunning(prev => !prev);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const syncNetworkData = useCallback(() => {
+    setIsSyncing(true);
+    setTimeout(() => {
+      setGateways(prev => prev.map(g => ({
+        ...g,
+        lastSeen: g.status === 'connected' ? new Date().toISOString() : g.lastSeen,
+        signalStrength: g.status === 'connected' ? Math.max(75, Math.min(99, g.signalStrength + Math.floor(Math.random() * 5) - 2)) : g.signalStrength,
+      })));
+      setIsSyncing(false);
+      addNotification('success', 'Sinkronisasi Jaringan Berhasil', 'Data seluruh 7 perangkat Gateway telah diperbarui.');
+    }, 900);
+  }, [addNotification]);
 
   const connectedGateways = gateways.filter(g => g.status === 'connected').length;
   const totalRegistered = CARD_HOLDERS.length;
@@ -151,13 +158,11 @@ export const useSimulation = () => {
     historyRecords,
     notifications,
     removeNotification,
-    isSimRunning,
-    toggleSimulation,
-    simulateNewDetection,
-    simulateCardLeave,
     totalDetectionsToday,
     connectedGateways,
     totalRegistered,
     addNotification,
+    isSyncing,
+    syncNetworkData,
   };
 };

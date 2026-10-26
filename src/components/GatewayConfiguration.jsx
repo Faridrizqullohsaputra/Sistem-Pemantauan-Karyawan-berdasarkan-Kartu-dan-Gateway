@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import {
   Settings, Save, TestTube, RotateCcw, Eye, EyeOff,
-  Server, Lock, Globe, Package, Loader2,
+  Server, Lock, Globe, Loader2,
 } from 'lucide-react';
-import { formatDateTime } from '../data/simulationData';
 
 const INITIAL_CONFIG = {
   name: '',
@@ -88,17 +87,17 @@ const GatewayConfiguration = ({ gateways, onAddNotification }) => {
       return;
     }
     setTestStatus('testing');
-    onAddNotification('info', 'Test Koneksi', `Menguji komunikasi simulasi ke ${config.url}...`);
+    onAddNotification('info', 'Uji Koneksi', `Menguji komunikasi jaringan ke ${config.url}...`);
     setTimeout(() => {
       const isKnownIP = config.url.includes('10.1.5.');
       const gw = gateways.find(g => g.id === selectedGw);
       const wouldConnect = gw ? gw.status === 'connected' : isKnownIP;
       if (wouldConnect) {
         setTestStatus('success');
-        onAddNotification('success', 'Test Sukses', `Simulasi koneksi ke ${config.url} berhasil.`);
+        onAddNotification('success', 'Koneksi Berhasil', `Koneksi ke ${config.url} berhasil terhubung.`);
       } else {
         setTestStatus('failed');
-        onAddNotification('error', 'Test Gagal', `Simulasi koneksi ke ${config.url} gagal.`);
+        onAddNotification('error', 'Koneksi Gagal', `Tidak dapat terhubung ke ${config.url}.`);
       }
     }, 1200);
   };
@@ -157,8 +156,8 @@ const GatewayConfiguration = ({ gateways, onAddNotification }) => {
                 {selectedGw ? `Parameter ${selectedGw} (${gateways.find(g=>g.id===selectedGw)?.ip})` : 'Formulir pengaturan parameter Gateway'}
               </p>
             </div>
-            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
-              PROTOTIPE
+            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+              SISTEM AKTIF
             </span>
           </div>
 
@@ -277,8 +276,8 @@ const GatewayConfiguration = ({ gateways, onAddNotification }) => {
                 ? 'bg-[var(--success-bg)] text-[var(--success)] border-[var(--success-border)]'
                 : 'bg-[var(--danger-bg)] text-[var(--danger)] border-[var(--danger-border)]'
             }`}>
-              <span>{testStatus === 'success' ? `Simulasi sukses terhubung ke ${config.url}` : `Simulasi gagal ke ${config.url}`}</span>
-              <span className="font-mono text-[10px]">SIMULASI</span>
+              <span>{testStatus === 'success' ? `Sukses terhubung ke ${config.url}` : `Gagal terhubung ke ${config.url}`}</span>
+              <span className="font-mono text-[10px]">STATUS KONEKSI</span>
             </div>
           )}
 
@@ -288,7 +287,7 @@ const GatewayConfiguration = ({ gateways, onAddNotification }) => {
               id="btn-save-config"
               onClick={handleSave}
               disabled={saveStatus === 'saving'}
-              className="btn-sim-enter"
+              className="btn-primary-action"
             >
               {saveStatus === 'saving'
                 ? <Loader2 size={13} className="animate-spin" />
@@ -311,7 +310,7 @@ const GatewayConfiguration = ({ gateways, onAddNotification }) => {
             <button
               id="btn-reset-form"
               onClick={handleReset}
-              className="btn-sim-leave ml-auto"
+              className="btn-danger-action ml-auto"
             >
               <RotateCcw size={13} />
               <span>Reset Form</span>

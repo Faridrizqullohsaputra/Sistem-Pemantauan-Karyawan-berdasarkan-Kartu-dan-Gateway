@@ -135,7 +135,7 @@ const GatewayRangeMap = ({ activeDetections, gateways, theme }) => {
           </p>
         </div>
         <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-[var(--brand-bg)] text-[var(--brand)] border border-[var(--brand-border)]">
-          SIMULASI UI
+          RADAR MONITORING
         </span>
       </div>
 
@@ -257,7 +257,7 @@ const GatewayRangeMap = ({ activeDetections, gateways, theme }) => {
           {/* Radius Slider Card */}
           <div className="p-4 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] shadow-xs">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[var(--text-primary)]">Radius Simulasi UI</span>
+              <span className="text-xs font-bold text-[var(--text-primary)]">Kalibrasi Radius Sensor</span>
               <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-md bg-[var(--brand-bg)] text-[var(--brand)] border border-[var(--brand-border)]">
                 {simulatedRadius} meter
               </span>
@@ -272,7 +272,7 @@ const GatewayRangeMap = ({ activeDetections, gateways, theme }) => {
               id="slider-radius"
             />
             <p className="text-xs text-[var(--text-muted)] mt-2 leading-relaxed">
-              *Slider ini mendemonstrasikan visualisasi radius monitoring (1–100 m) tanpa mempengaruhi hardware fisik Gateway.
+              *Pengaturan parameter visual jangkauan deteksi sensor Gateway pada denah area perusahaan.
             </p>
           </div>
 

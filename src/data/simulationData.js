@@ -17,6 +17,7 @@ export const GATEWAYS = [
     location: 'Lobby Utama Lt. 1',
     floor: 1,
     status: 'connected',
+    latency: 12,
     lastSeen: new Date(Date.now() - 12000).toISOString(),
     serviceAccess: 'HTTP',
     authType: 'Bearer Token',
@@ -35,6 +36,7 @@ export const GATEWAYS = [
     location: 'Ruang Server Lt. 2',
     floor: 2,
     status: 'connected',
+    latency: 8,
     lastSeen: new Date(Date.now() - 5000).toISOString(),
     serviceAccess: 'HTTP',
     authType: 'Bearer Token',
@@ -52,13 +54,15 @@ export const GATEWAYS = [
     url: 'http://10.1.5.62',
     location: 'Ruang Rapat Lt. 2',
     floor: 2,
-    status: 'connected',
-    lastSeen: new Date(Date.now() - 8000).toISOString(),
+    status: 'connecting',
+    latency: 285,
+    lastSeen: new Date(Date.now() - 28000).toISOString(),
     serviceAccess: 'HTTP',
     authType: 'API Key',
     maxPacketSize: 1024,
     uptime: '1d 8h 45m',
-    signalStrength: 76,
+    signalStrength: 42,
+    issue: 'Latensi tinggi & sinyal lemah',
     detectedCount: 18,
     posX: 25,
     posY: 30,
@@ -71,6 +75,7 @@ export const GATEWAYS = [
     location: 'Area Parkir B1',
     floor: -1,
     status: 'connected',
+    latency: 19,
     lastSeen: new Date(Date.now() - 4000).toISOString(),
     serviceAccess: 'HTTP',
     authType: 'Bearer Token',
@@ -89,6 +94,7 @@ export const GATEWAYS = [
     location: 'Kantin Lt. 1',
     floor: 1,
     status: 'connected',
+    latency: 15,
     lastSeen: new Date(Date.now() - 3000).toISOString(),
     serviceAccess: 'HTTP',
     authType: 'Basic Auth',
@@ -106,13 +112,15 @@ export const GATEWAYS = [
     url: 'http://10.1.5.140',
     location: 'Gudang Lt. 1',
     floor: 1,
-    status: 'connected',
-    lastSeen: new Date(Date.now() - 7000).toISOString(),
+    status: 'error',
+    latency: null,
+    lastSeen: new Date(Date.now() - 7200000).toISOString(),
     serviceAccess: 'HTTP',
     authType: 'Bearer Token',
     maxPacketSize: 1024,
-    uptime: '4d 3h 17m',
-    signalStrength: 78,
+    uptime: '0m',
+    signalStrength: 0,
+    issue: 'Koneksi perangkat terputus',
     detectedCount: 19,
     posX: 80,
     posY: 70,
@@ -125,6 +133,7 @@ export const GATEWAYS = [
     location: 'Pintu Belakang Lt. 1',
     floor: 1,
     status: 'connected',
+    latency: 14,
     lastSeen: new Date(Date.now() - 2000).toISOString(),
     serviceAccess: 'HTTP',
     authType: 'Bearer Token',
@@ -404,12 +413,13 @@ export const timeAgo = (isoString) => {
   if (!isoString) return '—';
   const diff = Date.now() - new Date(isoString).getTime();
   const secs = Math.floor(diff / 1000);
-  if (secs < 60) return `${secs}d lalu`;
+  if (secs < 8) return 'Baru saja';
+  if (secs < 60) return `${secs} dtk lalu`;
   const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m lalu`;
+  if (mins < 60) return `${mins} mnt lalu`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}j lalu`;
-  return `${Math.floor(hrs / 24)}h lalu`;
+  if (hrs < 24) return `${hrs} jam lalu`;
+  return `${Math.floor(hrs / 24)} hari lalu`;
 };
 
 export const STATUS_COLORS = {

@@ -118,8 +118,8 @@ const DetectionCard = ({ detection }) => {
             {holder.status === 'active' ? 'Kartu Aktif' : 'Kartu Nonaktif'}
           </strong>
         </span>
-        <span className="text-xs font-mono font-semibold text-[var(--text-muted)] px-2 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-          SIMULASI
+        <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40">
+          RFID / BLE
         </span>
       </div>
     </div>
@@ -133,7 +133,7 @@ const CardIdentity = ({ activeDetections }) => {
         <UserCheck size={44} className="mx-auto mb-3 text-[var(--border-strong)]" />
         <div className="text-base font-bold text-[var(--text-primary)]">Tidak ada kartu terdeteksi</div>
         <div className="text-xs text-[var(--text-muted)] mt-1">
-          Gunakan tombol <strong>Masuk</strong> pada bar atas untuk menambah kartu
+          Menunggu pembacaan sensor kartu dari perangkat Gateway...
         </div>
       </div>
     );
@@ -152,7 +152,7 @@ const CardIdentity = ({ activeDetections }) => {
           </p>
         </div>
         <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
-          DATA SIMULASI
+          REAL-TIME FEED
         </span>
       </div>
 

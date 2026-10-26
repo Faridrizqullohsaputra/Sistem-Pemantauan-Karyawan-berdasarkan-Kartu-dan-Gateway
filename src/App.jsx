@@ -22,14 +22,11 @@ function App() {
     historyRecords,
     notifications,
     removeNotification,
-    isSimRunning,
-    toggleSimulation,
-    simulateNewDetection,
-    simulateCardLeave,
     totalDetectionsToday,
-    connectedGateways,
     totalRegistered,
     addNotification,
+    isSyncing,
+    syncNetworkData,
   } = useSimulation();
 
   // Apply theme to document
@@ -73,6 +70,9 @@ function App() {
             onNavigate={setActivePage}
             historyRecords={historyRecords}
             theme={theme}
+            onAddNotification={addNotification}
+            syncNetworkData={syncNetworkData}
+            isSyncing={isSyncing}
           />
         );
       case 'cards':
@@ -86,7 +86,13 @@ function App() {
           />
         );
       case 'history':
-        return <DetectionHistory historyRecords={historyRecords} theme={theme} />;
+        return (
+          <DetectionHistory
+            historyRecords={historyRecords}
+            theme={theme}
+            onAddNotification={addNotification}
+          />
+        );
       case 'config':
         return (
           <GatewayConfiguration
@@ -116,15 +122,13 @@ function App() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header
           activePage={activePage}
-          isSimRunning={isSimRunning}
-          toggleSimulation={toggleSimulation}
-          simulateNewDetection={simulateNewDetection}
-          simulateCardLeave={simulateCardLeave}
           notifications={notifications}
           onToggleSidebar={() => setSidebarCollapsed(v => !v)}
           activeDetections={activeDetections}
           theme={theme}
           onToggleTheme={toggleTheme}
+          onSync={syncNetworkData}
+          isSyncing={isSyncing}
         />
 
         {/* Page content */}
@@ -133,9 +137,9 @@ function App() {
         </main>
 
         {/* Footer */}
-        <footer className="px-6 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+        <footer className="px-6 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] dark:bg-[#0F172A] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
           <span className="font-medium text-[var(--text-secondary)]">Company Gateway Monitoring Dashboard</span>
-          <span className="font-mono text-[11px] text-[var(--text-muted)]">Prototype — Data Simulasi</span>
+          <span className="font-mono text-[11px] text-[var(--text-muted)]">Enterprise IoT Gateway System</span>
           <span className="font-mono text-[11px] text-[var(--text-muted)]">v1.2.0 • Industrial SaaS</span>
         </footer>
       </div>

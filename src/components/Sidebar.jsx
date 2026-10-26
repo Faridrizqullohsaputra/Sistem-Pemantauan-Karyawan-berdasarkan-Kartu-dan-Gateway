@@ -25,7 +25,7 @@ const Sidebar = ({ activePage, onNavigate, gateways, activeDetections, isCollaps
 
   return (
     <aside
-      className={`flex flex-col bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] transition-all duration-200 ${
+      className={`flex flex-col bg-[var(--bg-surface)] dark:bg-[#0F172A] border-r border-[var(--border-subtle)] transition-all duration-200 ${
         isCollapsed ? 'w-16' : 'w-64'
       } min-h-screen select-none z-30`}
     >

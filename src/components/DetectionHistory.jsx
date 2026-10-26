@@ -3,7 +3,7 @@ import {
   History, Search, Filter, Download, ChevronUp, ChevronDown,
   ChevronsUpDown, CheckCircle, X,
 } from 'lucide-react';
-import { GATEWAYS, formatDateTime } from '../data/simulationData';
+import { GATEWAYS, formatDateTime, getCardHolder } from '../data/simulationData';
 
 const StatusChip = ({ status }) => {
   if (status === 'active') return (
@@ -26,7 +26,7 @@ const SortIcon = ({ field, sortField, sortDir }) => {
     : <ChevronDown size={11} className="text-[var(--brand)]" />;
 };
 
-const DetectionHistory = ({ historyRecords }) => {
+const DetectionHistory = ({ historyRecords, onAddNotification }) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [gatewayFilter, setGatewayFilter] = useState('all');
@@ -71,25 +71,70 @@ const DetectionHistory = ({ historyRecords }) => {
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const exportCSV = () => {
-    const headers = ['Waktu Deteksi', 'ID Kartu', 'Nama Pemilik', 'Departemen', 'Gateway', 'Lokasi', 'Jarak', 'Status'];
-    const rows = filtered.map(r => [
-      formatDateTime(r.detectedAt),
-      r.cardId,
-      r.holderName,
-      r.department,
-      r.gatewayName,
-      r.location,
-      r.distanceAvailable ? `${r.distance}m` : 'N/A',
-      r.cardStatus,
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    if (filtered.length === 0) {
+      onAddNotification?.('warning', 'Ekspor CSV', 'Tidak ada data untuk diekspor sesuai filter saat ini.');
+      return;
+    }
+
+    const headers = [
+      'No',
+      'ID Log',
+      'Waktu Deteksi',
+      'ID Kartu',
+      'NIP / ID Karyawan',
+      'Nama Karyawan / Pemilik',
+      'Departemen',
+      'Divisi',
+      'Jabatan',
+      'Tipe Kartu',
+      'ID Gateway',
+      'Nama Gateway',
+      'Lokasi Gateway',
+      'Jarak Sensor (meter)',
+      'Status Kartu',
+    ];
+
+    const rows = filtered.map((r, index) => {
+      const holder = getCardHolder(r.cardId);
+      return [
+        index + 1,
+        r.id || `LOG-${index + 1}`,
+        formatDateTime(r.detectedAt),
+        r.cardId || '-',
+        holder?.employeeId || '-',
+        r.holderName || holder?.name || '-',
+        r.department || holder?.department || '-',
+        holder?.division || '-',
+        holder?.role || '-',
+        r.cardType === 'employee' ? 'Karyawan' : 'Pengunjung/Tamu',
+        r.gatewayId || '-',
+        r.gatewayName || '-',
+        r.location || '-',
+        r.distanceAvailable && r.distance != null ? r.distance : '-',
+        r.cardStatus === 'active' ? 'Aktif' : 'Nonaktif',
+      ];
+    });
+
+    const escapeCSV = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    // UTF-8 BOM (\uFEFF) ensures Microsoft Excel properly displays characters and formatting
+    const csvContent = '\uFEFF' + [headers, ...rows]
+      .map(row => row.map(escapeCSV).join(','))
+      .join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
     a.href = url;
-    a.download = `detection-history-${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `Laporan_Deteksi_Gateway_${dateStr}_${timeStr}.csv`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    onAddNotification?.('success', 'Ekspor CSV Berhasil', `${filtered.length} baris riwayat deteksi berhasil diekspor.`);
   };
 
   const Col = ({ field, children }) => (
@@ -121,11 +166,14 @@ const DetectionHistory = ({ historyRecords }) => {
           <button
             id="btn-export-csv"
             onClick={exportCSV}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-primary)] transition-colors"
-            title="Ekspor CSV"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white text-xs font-semibold shadow-sm shadow-emerald-600/20 transition-all active:scale-95"
+            title="Ekspor laporan riwayat deteksi ke file CSV"
           >
-            <Download size={13} className="text-[var(--brand)]" />
-            Export CSV
+            <Download size={13} strokeWidth={2.5} />
+            <span>Ekspor CSV</span>
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-800/60 text-white font-bold">
+              {filtered.length}
+            </span>
           </button>
         </div>
       </div>
