@@ -6,20 +6,42 @@ import CardIdentity from './components/CardIdentity';
 import GatewayRangeMap from './components/GatewayRangeMap';
 import DetectionHistory from './components/DetectionHistory';
 import GatewayConfiguration from './components/GatewayConfiguration';
+import CardManagement from './components/CardManagement';
 import DashboardPage from './pages/DashboardPage';
+import HardwareCardModal from './components/HardwareCardModal';
 import { useSimulation } from './hooks/useSimulation';
 
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isHardwareModalOpen, setIsHardwareModalOpen] = useState(false);
+  const [selectedModalCardId, setSelectedModalCardId] = useState(null);
+  const [selectedGwForConfig, setSelectedGwForConfig] = useState(null);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('company_gateway_theme') || 'light';
   });
 
   const {
     gateways,
+    updateGatewayPosition,
+    updateGatewayDevice,
+    resetGatewayPositions,
+    addGateway,
+    deleteGateway,
     activeDetections,
     historyRecords,
+    registeredCards,
+    registerCard,
+    updateCard,
+    deleteCard,
+    toggleCardStatus,
+    detectCardById,
+    detectAllActiveCards,
+    clearAllDummyCards,
+    scanBluetoothDevice,
+    isScanningBLE,
+    isSimRunning,
+    setIsSimRunning,
     notifications,
     removeNotification,
     totalDetectionsToday,
@@ -27,6 +49,8 @@ function App() {
     addNotification,
     isSyncing,
     syncNetworkData,
+    unknownCardSignals,
+    registerUnknownCard,
   } = useSimulation();
 
   // Apply theme to document
@@ -68,21 +92,55 @@ function App() {
             totalRegistered={totalRegistered}
             totalDetectionsToday={totalDetectionsToday}
             onNavigate={setActivePage}
+            onConfigureGateway={(gwId) => {
+              setSelectedGwForConfig(gwId);
+              setActivePage('config');
+            }}
             historyRecords={historyRecords}
             theme={theme}
             onAddNotification={addNotification}
+            onUpdateGateway={updateGatewayDevice}
             syncNetworkData={syncNetworkData}
             isSyncing={isSyncing}
           />
         );
       case 'cards':
-        return <CardIdentity activeDetections={activeDetections} theme={theme} />;
+        return (
+          <CardIdentity
+            activeDetections={activeDetections}
+            onNavigate={setActivePage}
+            theme={theme}
+          />
+        );
+      case 'registered-cards':
+        return (
+          <CardManagement
+            registeredCards={registeredCards}
+            activeDetections={activeDetections}
+            onRegisterCard={registerCard}
+            onUpdateCard={updateCard}
+            onToggleStatus={toggleCardStatus}
+            onDeleteCard={deleteCard}
+            onDetectCard={detectCardById}
+            onOpenHardwareModal={(cardId) => {
+              setSelectedModalCardId(cardId || null);
+              setIsHardwareModalOpen(true);
+            }}
+            onAddNotification={addNotification}
+            unknownCardSignals={unknownCardSignals}
+            onRegisterUnknownCard={registerUnknownCard}
+            theme={theme}
+          />
+        );
       case 'map':
         return (
           <GatewayRangeMap
             activeDetections={activeDetections}
             gateways={gateways}
             theme={theme}
+            onUpdateGatewayPosition={updateGatewayPosition}
+            onResetGatewayPositions={resetGatewayPositions}
+            onAddNotification={addNotification}
           />
         );
       case 'history':
@@ -97,7 +155,11 @@ function App() {
         return (
           <GatewayConfiguration
             gateways={gateways}
+            onUpdateGateway={updateGatewayDevice}
+            onAddGateway={addGateway}
+            onDeleteGateway={deleteGateway}
             onAddNotification={addNotification}
+            initialSelectedGwId={selectedGwForConfig}
             theme={theme}
           />
         );
@@ -114,6 +176,7 @@ function App() {
         onNavigate={setActivePage}
         gateways={gateways}
         activeDetections={activeDetections}
+        registeredCards={registeredCards}
         isCollapsed={sidebarCollapsed}
         theme={theme}
       />
@@ -129,6 +192,10 @@ function App() {
           onToggleTheme={toggleTheme}
           onSync={syncNetworkData}
           isSyncing={isSyncing}
+          onOpenHardwareModal={(cardId) => {
+            setSelectedModalCardId(cardId || null);
+            setIsHardwareModalOpen(true);
+          }}
         />
 
         {/* Page content */}
@@ -143,6 +210,24 @@ function App() {
           <span className="font-mono text-[11px] text-[var(--text-muted)]">v1.2.0 • Industrial SaaS</span>
         </footer>
       </div>
+
+      {/* Modal: Capture Signal from Gateway for any or all active cards */}
+      <HardwareCardModal
+        isOpen={isHardwareModalOpen}
+        onClose={() => {
+          setIsHardwareModalOpen(false);
+          setSelectedModalCardId(null);
+        }}
+        gateways={gateways}
+        registeredCards={registeredCards}
+        initialCardId={selectedModalCardId}
+        onDetectCard={detectCardById}
+        onDetectAllCards={detectAllActiveCards}
+        onScanBluetooth={scanBluetoothDevice}
+        isScanningBLE={isScanningBLE}
+        isSimRunning={isSimRunning}
+        onToggleSim={() => setIsSimRunning(v => !v)}
+      />
 
       {/* Toast Notifications */}
       <NotificationToast

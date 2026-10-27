@@ -26,10 +26,18 @@ const PAGE_META = {
   cards: {
     title: 'Kartu Terdeteksi',
     desc: 'Daftar lengkap identitas kartu yang saat ini berada dalam radius sensor',
-    icon: CreditCard,
+    icon: Radio,
     accentClass: 'text-emerald-600 dark:text-emerald-400',
     bgClass: 'bg-emerald-50 dark:bg-emerald-900/30',
     borderClass: 'border-emerald-200 dark:border-emerald-800/50',
+  },
+  'registered-cards': {
+    title: 'Registrasi & Data Kartu',
+    desc: 'Basis data pendaftaran kartu RFID/BLE. Deteksi Gateway hanya memproses kartu yang terdaftar aktif',
+    icon: CreditCard,
+    accentClass: 'text-indigo-600 dark:text-indigo-400',
+    bgClass: 'bg-indigo-50 dark:bg-indigo-900/30',
+    borderClass: 'border-indigo-200 dark:border-indigo-800/50',
   },
   map: {
     title: 'Peta Jangkauan Gateway',
@@ -66,6 +74,7 @@ const Header = ({
   onToggleTheme,
   onSync,
   isSyncing = false,
+  onOpenHardwareModal,
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showNotifDot, setShowNotifDot] = useState(false);
@@ -153,6 +162,16 @@ const Header = ({
             <span className="hidden md:inline">
               {theme === 'dark' ? 'Terang' : 'Gelap'}
             </span>
+          </button>
+
+          {/* Real Card Hardware Scanner Button */}
+          <button
+            onClick={() => onOpenHardwareModal?.()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-sm shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer"
+            title="Tangkap sinyal kartu aktif melalui Gateway (RFID / BLE / Webhook)"
+          >
+            <Radio size={14} className="animate-pulse text-white" />
+            <span className="hidden sm:inline">Tangkap Sinyal Gateway</span>
           </button>
 
           {/* Sync Button */}

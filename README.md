@@ -1,148 +1,168 @@
-# Company Gateway Monitoring Dashboard
+# Sistem Pemantauan Karyawan & Pengunjung Berdasarkan Kartu dan Gateway IoT
 
-> **Prototype Frontend** — Data yang ditampilkan adalah simulasi. Dashboard ini belum terhubung ke Gateway nyata.
-
-Aplikasi web monitoring untuk memantau kartu identitas karyawan dan pengunjung yang terdeteksi melalui perangkat Gateway di lingkungan perusahaan.
-
-## 🖥️ Preview Fitur
-
-- **Dashboard Utama** — Statistik live, status semua Gateway, aktivitas terkini
-- **Kartu Terdeteksi** — Panel kartu aktif dalam jangkauan saat ini
-- **Peta Jangkauan** — Visualisasi SVG posisi Gateway & kartu, dengan slider radius
-- **Riwayat Deteksi** — Tabel lengkap dengan pencarian, filter, sortir, dan ekspor CSV
-- **Konfigurasi Gateway** — Form konfigurasi Gateway (prototype, tanpa request nyata)
-- **Simulasi** — Kartu baru masuk/keluar jangkauan secara otomatis & manual
-
-## 🌐 Gateway yang Dikonfigurasi
-
-| Gateway | IP | Lokasi | Status |
-|---------|-----|--------|--------|
-| GW-01 | 10.1.5.13  | Lobby Utama Lt. 1   | Connected   |
-| GW-02 | 10.1.5.32  | Ruang Server Lt. 2  | Connected   |
-| GW-03 | 10.1.5.62  | Ruang Rapat Lt. 2   | Connected   |
-| GW-04 | 10.1.5.89  | Area Parkir B1      | Connecting  |
-| GW-05 | 10.1.5.114 | Kantin Lt. 1        | Connected   |
-| GW-06 | 10.1.5.140 | Gudang Lt. 1        | Error       |
-| GW-07 | 10.1.5.194 | Pintu Belakang Lt.1 | Disconnected|
+Aplikasi web modern untuk monitoring presensi dan pergerakan kartu identitas (RFID/BLE) karyawan serta pengunjung melalui jaringan perangkat Gateway IoT di lingkungan perusahaan.
 
 ---
 
-## ⚙️ Prasyarat
+## 🌟 Fitur Utama Sistem
 
-Sebelum menjalankan proyek, pastikan sudah terinstall:
+### 1. Dashboard Monitoring Utama
+- **4 Kartu Metrik Interaktif**:
+  - *Kartu Terdeteksi*: Jumlah kartu yang saat ini berada dalam jangkauan sensor (klik untuk membuka live feed).
+  - *Total Kartu Terdaftar*: Total basis data kartu karyawan & pengunjung terdaftar (klik untuk membuka modul registrasi kartu).
+  - *Gateway Terhubung*: Rasio perangkat online dengan badge 3 level operasional (Normal / Warning / Offline).
+  - *Total Aktivitas Deteksi*: Akumulasi pembacaan sensor harian.
+- **Status Gateway 3-Level (Online / Warning / Offline)**:
+  - Multi-segment health bar proporsional (Hijau, Kuning, Merah).
+  - Tab filter cepat (*Semua*, *Online*, *Warning*, *Offline*) & pencarian instan.
+  - Telemetri live per gateway (IP, kekuatan sinyal 4-bar, kartu aktif, waktu terakhir terlihat, dan latensi).
+  - Tombol interaktif **Uji Jaringan** dan **Uji Ping ICMP** per perangkat.
+  - Panel **Diagnostik Jaringan IoT** di bagian bawah kartu untuk sinkronisasi seluruh perangkat secara real-time.
+- **Aktivitas Deteksi Terkini**: Live feed kartu yang baru saja terdeteksi dilengkapi pencarian instan dan filter per Gateway.
+- **Grafik Aktivitas Per Jam**: Distribusi frekuensi pembacaan sensor dalam rentang 12 jam terakhir.
+- **Riwayat Pembacaan Terakhir**: 5 log pencatatan terbaru yang diperbarui otomatis.
 
-### 1. Install Node.js
+---
 
-Download dari **https://nodejs.org** — pilih versi **LTS (22.x)**
+### 2. Registrasi & Manajemen Kartu (Card Registry)
+Sistem sensor Gateway **hanya akan mendeteksi kartu yang terdaftar aktif dalam basis data**:
+- **Formulir Registrasi Kartu Baru**:
+  - Input ID Kartu (RFID / BLE UID) dengan fitur *Generate ID Acak*.
+  - Nomor Induk Karyawan (NIK) atau Nomor Registrasi Tamu.
+  - Nama lengkap pemegang kartu.
+  - Tipe kartu: *Karyawan (Employee)* atau *Pengunjung (Visitor)*.
+  - Departemen & Divisi (Engineering, HRD, IT, Finance, Operations, Marketing, dll).
+  - Jabatan / Role kerja.
+  - Status registrasi awal: *Aktif (Dapat Dideteksi)* atau *Nonaktif*.
+  - Opsi *Langsung uji deteksi di Gateway setelah registrasi*.
+  - **Live Preview Kartu Fisik**: Menampilkan kartu identitas virtual real-time saat mengisi form.
+- **Daftar Kartu Terdaftar**:
+  - Pencarian multi-field (nama, ID kartu, NIK, role, departemen).
+  - Filter berdasarkan status (Aktif/Nonaktif) dan tipe (Karyawan/Pengunjung).
+  - Indikator status live: *Sedang Terdeteksi di Gateway* vs *Di Luar Jangkauan*.
+  - Tombol **Toggle Status** instan (Aktifkan / Nonaktifkan kartu). Kartu nonaktif otomatis ditolak oleh sensor.
+  - Tombol **Uji Deteksi** untuk menguji pembacaan kartu di Gateway aktif secara langsung.
+  - Fitur hapus kartu dari sistem registrasi.
 
-Setelah install, verifikasi di terminal:
+---
+
+### 3. Kartu Terdeteksi (Live Area)
+- Panel khusus yang menampilkan kartu-kartu yang saat ini berada dalam radius pembacaan Gateway.
+- Dilengkapi penanda waktu relatif (*Baru saja*, *dtk lalu*, *mnt lalu*), lokasi gateway deteksi, dan tombol pintas ke modul manajemen kartu.
+
+---
+
+### 4. Peta Jangkauan Gateway (Range Map)
+- Visualisasi denah area berbasis SVG interaktif.
+- Menampilkan posisi 7 titik deteksi Gateway beserta jangkauan sinyal dan posisi kartu yang terdeteksi di sekitarnya.
+- Kontrol slider radius jangkauan deteksi (10m – 100m).
+- Klik pada gateway untuk menginspeksi detail telemetri dan kartu yang berada dalam radiusnya.
+
+---
+
+### 5. Riwayat Deteksi & Ekspor Laporan CSV
+- Tabel log lengkap pembacaan sensor kartu dari seluruh Gateway.
+- Filter pencarian teks, filter per Gateway, filter tipe kartu, dan filter rentang tanggal.
+- Pagination data responsif.
+- Fitur **Ekspor CSV**: Mengunduh laporan riwayat deteksi berstandar enterprise dengan format bersih siap buka di Microsoft Excel / Google Sheets.
+
+---
+
+### 6. Konfigurasi Gateway
+- Form konfigurasi koneksi jaringan Gateway (Service Access: HTTP, HTTPS, WebSocket, MQTT).
+- Pengaturan autentikasi (Bearer Token, API Key, Basic Auth).
+- Fitur uji koneksi jaringan langsung ke IP gateway.
+
+---
+
+## 🌐 Daftar Perangkat Gateway (Titik Deteksi)
+
+Perangkat Gateway dinamai secara sistematis sebagai titik deteksi IoT dalam jaringan lokal `10.1.5.x`:
+
+| ID Gateway | Nama Gateway | Alamat IP | Titik Lokasi | Level Status | Latensi |
+|------------|--------------|-----------|--------------|--------------|---------|
+| **GW-01** | Gateway Deteksi 01 | `10.1.5.13`  | Titik Deteksi 01 (Lt. 1) | 🟢 Online  | ~12 ms  |
+| **GW-02** | Gateway Deteksi 02 | `10.1.5.32`  | Titik Deteksi 02 (Lt. 2) | 🟢 Online  | ~8 ms   |
+| **GW-03** | Gateway Deteksi 03 | `10.1.5.62`  | Titik Deteksi 03 (Lt. 2) | ⚠️ Warning | ~285 ms (Sinyal lemah) |
+| **GW-04** | Gateway Deteksi 04 | `10.1.5.89`  | Titik Deteksi 04 (Area B1) | 🟢 Online  | ~19 ms  |
+| **GW-05** | Gateway Deteksi 05 | `10.1.5.114` | Titik Deteksi 05 (Lt. 1) | 🟢 Online  | ~15 ms  |
+| **GW-06** | Gateway Deteksi 06 | `10.1.5.140` | Titik Deteksi 06 (Lt. 1) | 🔴 Offline | — (Koneksi terputus) |
+| **GW-07** | Gateway Deteksi 07 | `10.1.5.194` | Titik Deteksi 07 (Lt. 1) | 🟢 Online  | ~14 ms  |
+
+---
+
+## 🎨 Desain & UI/UX
+
+- **Design System Tokens**: Menggunakan CSS Custom Properties (`--bg-surface`, `--brand`, `--success`, dll) untuk konsistensi visual.
+- **Dark Mode Konsisten**: Kartu dan panel memiliki kedalaman warna (*cards lighter than base background*) untuk hierarki dimensi yang elegan.
+- **Tipografi Modern**: Menggunakan Google Font **Inter** untuk teks antarmuka dan **JetBrains Mono** untuk ID kartu, IP, dan latensi.
+- **Radius & Transisi**: Sudut melengkung 16px (`rounded-2xl`) dengan transisi halus pada status hover dan animasi loading.
+
+---
+
+## 🚀 Panduan Menjalankan Proyek
+
+### 1. Prasyarat
+- **Node.js** versi 18.x atau yang lebih baru (disarankan Node.js 20+ LTS).
+- **npm** versi 9+.
+
+Verifikasi versi Node.js di terminal:
 ```bash
-node --version   # Harusnya v18+ atau v20+
-npm --version    # Harusnya v9+
+node -v
+npm -v
 ```
 
----
-
-## 🚀 Cara Menjalankan
-
-### Install dependencies
+### 2. Instalasi Dependensi
 ```bash
 npm install
 ```
 
-### Jalankan development server
+### 3. Menjalankan Server Development
 ```bash
 npm run dev
 ```
+Buka browser dan akses URL lokal: **http://localhost:5173** (atau port yang tertera pada terminal).
 
-Buka browser dan akses: **http://localhost:5173**
-
-### Build produksi
+### 4. Build Produksi
+Untuk memeriksa validitas bundle produksi:
 ```bash
 npm run build
 ```
-
-File hasil build ada di folder `dist/`.
-
-### Preview build produksi
-```bash
-npm run preview
-```
+Hasil kompilasi siap rilis akan berada di direktori `dist/`.
 
 ---
 
-## 📁 Struktur Proyek
+## 📁 Struktur Berkas
 
 ```
 src/
-├── App.jsx                        # Root aplikasi & routing antar halaman
-├── main.jsx                       # Entry point React
-├── index.css                      # Global styles (Tailwind + custom)
+├── App.jsx                        # Root aplikasi, state global, dan routing halaman
+├── main.jsx                       # Entry point React DOM
+├── index.css                      # Design tokens CSS (Light/Dark mode, animasi, tipografi)
 │
 ├── data/
-│   └── simulationData.js          # ⚠️ Data simulasi (Gateway, kartu, riwayat)
+│   └── simulationData.js          # Definisi data awal Gateway Deteksi 01-07 & kartu identitas
 │
 ├── hooks/
-│   └── useSimulation.js           # State management simulasi
+│   └── useSimulation.js           # State management: registrasi kartu, deteksi berbasis register, polling IoT
 │
 ├── components/
-│   ├── Sidebar.jsx                # Navigasi sidebar
-│   ├── Header.jsx                 # Header + kontrol simulasi
-│   ├── DashboardStats.jsx         # Kartu statistik
-│   ├── GatewayStatus.jsx          # Panel status Gateway
-│   ├── CardIdentity.jsx           # Panel kartu terdeteksi
-│   ├── GatewayRangeMap.jsx        # Peta SVG jangkauan
-│   ├── DetectionHistory.jsx       # Tabel riwayat + filter + CSV
-│   ├── GatewayConfiguration.jsx   # Form konfigurasi Gateway
-│   └── NotificationToast.jsx      # Notifikasi toast
+│   ├── Sidebar.jsx                # Navigasi sidebar dengan counter badge
+│   ├── Header.jsx                 # Top bar: metadata halaman, jam digital, toggle tema
+│   ├── DashboardStats.jsx         # 4 Kartu metrik utama yang terhubung ke modul
+│   ├── GatewayStatus.jsx          # Panel status 3-level Gateway dengan telemetri & uji ping
+│   ├── CardManagement.jsx         # Modul registrasi kartu baru & tabel manajemen kartu
+│   ├── CardIdentity.jsx           # Panel live feed kartu yang sedang terdeteksi
+│   ├── GatewayRangeMap.jsx        # Peta SVG interaktif posisi Gateway & kartu
+│   ├── DetectionHistory.jsx       # Log riwayat lengkap, filter pencarian & ekspor CSV
+│   ├── GatewayConfiguration.jsx   # Pengaturan konfigurasi koneksi jaringan Gateway
+│   └── NotificationToast.jsx      # Notifikasi toast interaktif
 │
 └── pages/
-    └── DashboardPage.jsx          # Halaman dashboard utama
+    └── DashboardPage.jsx          # Halaman dashboard utama (Stats, Gateway, Feed, Chart, Riwayat)
 ```
 
 ---
 
-## 🎮 Cara Menggunakan Simulasi
-
-### Kontrol di Header (kanan atas):
-| Tombol | Fungsi |
-|--------|--------|
-| ⚡ **Deteksi** | Tambah kartu baru yang terdeteksi secara manual |
-| ↗ **Keluar** | Hapus satu kartu dari daftar aktif |
-| ⏸/▶ **Jeda/Lanjut** | Hentikan atau lanjutkan simulasi otomatis |
-
-### Simulasi Otomatis:
-- Setiap 8 detik, sistem secara acak menambah atau menghapus kartu dari daftar aktif
-- Statistik dan riwayat diperbarui otomatis
-- Notifikasi muncul di pojok kanan bawah
-
----
-
-## 🔧 Persiapan Integrasi Gateway Nyata
-
-File `src/data/simulationData.js` dan `src/hooks/useSimulation.js` dirancang untuk kemudahan integrasi.
-
-Langkah integrasi setelah dokumentasi Gateway tersedia:
-1. Ganti data simulasi di `simulationData.js` dengan fetch API ke endpoint Gateway
-2. Update `useSimulation.js` untuk polling atau WebSocket ke Gateway
-3. Sesuaikan format payload sesuai dokumentasi protokol Gateway
-4. Tambahkan autentikasi yang sesuai (Bearer Token / API Key / Basic Auth)
-
----
-
-## ⚠️ Catatan Penting
-
-- **Ini adalah prototype frontend.** Tidak ada backend atau database.
-- **Data adalah simulasi**, bukan dari Gateway nyata.
-- **Credential** pada form konfigurasi tidak disimpan ke localStorage.
-- Integrasi dengan Gateway nyata memerlukan dokumentasi protokol terlebih dahulu.
-- Jarak deteksi ditandai "N/A" karena belum terverifikasi dari Gateway.
-
----
-
-## 🛠️ Teknologi
-
-- **React 18** + Vite 5
-- **Tailwind CSS 3**
-- **Lucide React** (ikon)
-- JavaScript ES6+
+## 📄 Lisensi
+Sistem Pemantauan Karyawan & Pengunjung Berdasarkan Kartu dan Gateway IoT. Hak Cipta Perusahaan.

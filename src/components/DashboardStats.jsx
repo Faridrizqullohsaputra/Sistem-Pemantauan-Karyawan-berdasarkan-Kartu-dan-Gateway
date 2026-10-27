@@ -34,11 +34,14 @@ const AreaSparkline = ({ color, id }) => (
   </svg>
 );
 
-const StatCard = ({ icon: Icon, label, value, sub, badgeType, badgeText, sparkColor, id }) => (
-  <div className="stat-card group">
+const StatCard = ({ icon: Icon, label, value, sub, badgeType, badgeText, sparkColor, id, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`stat-card group ${onClick ? 'cursor-pointer hover:border-[var(--brand)] transition-all' : ''}`}
+  >
     {/* Card Top: 44px Icon Box & Status Pill */}
     <div className="flex items-center justify-between mb-3.5">
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-[var(--brand-bg)] text-[var(--brand)] border border-[var(--brand-border)] shadow-xs">
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-[var(--brand-bg)] text-[var(--brand)] border border-[var(--brand-border)] shadow-xs group-hover:scale-105 transition-transform">
         <Icon size={22} />
       </div>
 
@@ -80,7 +83,7 @@ const StatCard = ({ icon: Icon, label, value, sub, badgeType, badgeText, sparkCo
     </div>
 
     {/* Title & Description */}
-    <div className="text-sm font-bold text-[var(--text-primary)]">{label}</div>
+    <div className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors">{label}</div>
     {sub && <div className="text-xs text-[var(--text-muted)] mt-0.5 font-medium">{sub}</div>}
   </div>
 );
@@ -93,6 +96,7 @@ const DashboardStats = ({
   totalDetectionsToday,
   warningGateways = 0,
   offlineGateways = 0,
+  onNavigate,
 }) => {
   const hasIssues = offlineGateways > 0 || warningGateways > 0;
 
@@ -106,16 +110,18 @@ const DashboardStats = ({
       badgeType: 'info',
       badgeText: 'Live Area',
       sparkColor: 'var(--brand)',
+      onClick: onNavigate ? () => onNavigate('cards') : null,
     },
     {
       id: 'registered',
       icon: Users,
       label: 'Total Kartu Terdaftar',
       value: totalRegistered,
-      sub: 'Karyawan & pengunjung terdata',
+      sub: 'Klik untuk kelola & registrasi',
       badgeType: 'success',
-      badgeText: '+2 bulan ini',
+      badgeText: 'Database',
       sparkColor: 'var(--success)',
+      onClick: onNavigate ? () => onNavigate('registered-cards') : null,
     },
     {
       id: 'gateways',

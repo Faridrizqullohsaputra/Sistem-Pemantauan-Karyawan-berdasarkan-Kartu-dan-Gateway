@@ -1,5 +1,5 @@
 import React from 'react';
-import { CreditCard, Clock, Wifi, MapPin, Building2, Hash, UserCheck } from 'lucide-react';
+import { CreditCard, Clock, Wifi, MapPin, Building2, Hash, UserCheck, Radio } from 'lucide-react';
 import { getCardHolder, getGateway, formatTime, timeAgo } from '../data/simulationData';
 
 const PALETTES = [
@@ -36,11 +36,26 @@ const getAvatarStyle = (cardId = '') => {
 };
 
 const DetectionCard = ({ detection }) => {
-  const holder = getCardHolder(detection.cardId);
-  const gw = getGateway(detection.gatewayId);
-  const avatarStyle = getAvatarStyle(detection.cardId);
+  const rawHolder = getCardHolder(detection.cardId);
+  const holder = rawHolder || {
+    cardId: detection.cardId,
+    name: detection.cardHolder || 'Pemegang Kartu',
+    employeeId: detection.employeeId || 'ID-UNKNOWN',
+    department: detection.department || 'Umum',
+    cardType: 'employee',
+    status: 'active',
+    avatarInitials: (detection.cardHolder || detection.cardId || 'ID').slice(0, 2).toUpperCase(),
+  };
 
-  if (!holder || !gw) return null;
+  const rawGw = getGateway(detection.gatewayId);
+  const gw = rawGw || {
+    id: detection.gatewayId,
+    name: detection.gatewayId || 'Gateway Deteksi',
+    location: 'Titik Sensor',
+    ip: '10.1.5.x',
+  };
+
+  const avatarStyle = getAvatarStyle(detection.cardId);
 
   return (
     <div className="card-container p-5 hover:border-[var(--border-strong)] transition-all">
@@ -49,7 +64,7 @@ const DetectionCard = ({ detection }) => {
         <div
           className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 relative border ${avatarStyle.bg} ${avatarStyle.text} ${avatarStyle.border}`}
         >
-          <span>{holder.avatarInitials}</span>
+          <span>{holder.avatarInitials || holder.name?.slice(0, 2)?.toUpperCase() || 'ID'}</span>
           {holder.cardType === 'visitor' && (
             <span
               className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--warning)] text-white flex items-center justify-center text-[10px] font-bold shadow-xs"
@@ -126,34 +141,54 @@ const DetectionCard = ({ detection }) => {
   );
 };
 
-const CardIdentity = ({ activeDetections }) => {
+const CardIdentity = ({ activeDetections = [], onNavigate }) => {
   if (activeDetections.length === 0) {
     return (
       <div className="card-container p-12 text-center">
         <UserCheck size={44} className="mx-auto mb-3 text-[var(--border-strong)]" />
         <div className="text-base font-bold text-[var(--text-primary)]">Tidak ada kartu terdeteksi</div>
-        <div className="text-xs text-[var(--text-muted)] mt-1">
-          Menunggu pembacaan sensor kartu dari perangkat Gateway...
+        <div className="text-xs text-[var(--text-muted)] mt-1 mb-4">
+          Menunggu pembacaan sensor kartu dari perangkat Gateway... Pastikan kartu sudah terdaftar aktif.
         </div>
+        {onNavigate && (
+          <button
+            onClick={() => onNavigate('registered-cards')}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-[var(--brand)] text-white hover:opacity-90 shadow-sm transition-all inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <CreditCard size={14} />
+            Buka Registrasi &amp; Data Kartu
+          </button>
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="section-title">
-            <CreditCard size={18} className="text-[var(--brand)]" />
+            <Radio size={18} className="text-[var(--brand)]" />
             Kartu Terdeteksi ({activeDetections.length} Kartu Aktif)
           </h2>
           <p className="section-subtitle">
-            Daftar identitas yang berada dalam radius sensor Gateway kantor
+            Daftar identitas yang berada dalam radius sensor Gateway kantor (disaring dari kartu terdaftar)
           </p>
         </div>
-        <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
-          REAL-TIME FEED
-        </span>
+        <div className="flex items-center gap-2">
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('registered-cards')}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--brand-bg)] text-[var(--brand)] border border-[var(--brand-border)] hover:bg-[var(--brand)] hover:text-white transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <CreditCard size={13} />
+              Kelola Pendaftaran Kartu
+            </button>
+          )}
+          <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+            REAL-TIME FEED
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

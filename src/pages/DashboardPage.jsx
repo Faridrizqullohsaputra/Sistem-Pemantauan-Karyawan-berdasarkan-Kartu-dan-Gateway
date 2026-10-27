@@ -172,6 +172,8 @@ const DashboardPage = ({
   totalRegistered,
   totalDetectionsToday,
   onNavigate,
+  onConfigureGateway,
+  onUpdateGateway,
   historyRecords,
   onAddNotification,
   syncNetworkData,
@@ -221,6 +223,7 @@ const DashboardPage = ({
         totalDetectionsToday={totalDetectionsToday}
         warningGateways={warningGateways}
         offlineGateways={offlineGateways}
+        onNavigate={onNavigate}
       />
 
       {/* ── Main Grid ── */}
@@ -231,6 +234,8 @@ const DashboardPage = ({
             gateways={gateways}
             activeDetections={activeDetections}
             onAddNotification={onAddNotification}
+            onConfigureGateway={onConfigureGateway}
+            onUpdateGateway={onUpdateGateway}
             syncNetworkData={syncNetworkData}
             isSyncing={isSyncing}
           />
@@ -291,7 +296,7 @@ const DashboardPage = ({
                 className="input-styled px-3 py-1.5 text-xs appearance-none cursor-pointer min-w-40 font-medium"
               >
                 <option value="all">Semua Gateway</option>
-                {GATEWAYS.map(gw => (
+                {gateways.map(gw => (
                   <option key={gw.id} value={gw.id}>{gw.name}</option>
                 ))}
               </select>

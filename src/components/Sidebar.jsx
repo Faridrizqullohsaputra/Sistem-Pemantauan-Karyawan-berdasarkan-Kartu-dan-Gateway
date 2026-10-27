@@ -3,23 +3,27 @@ import {
   LayoutDashboard,
   CreditCard,
   Radio,
+  MapPin,
   History,
   Settings,
   ChevronRight,
   RadioTower,
   Server,
   ShieldCheck,
+  UserPlus,
+  Users,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'cards', label: 'Kartu Terdeteksi', icon: CreditCard },
-  { id: 'map', label: 'Peta Jangkauan', icon: Radio },
+  { id: 'cards', label: 'Kartu Terdeteksi', icon: Radio },
+  { id: 'registered-cards', label: 'Registrasi & Data Kartu', icon: CreditCard },
+  { id: 'map', label: 'Peta Jangkauan', icon: MapPin },
   { id: 'history', label: 'Riwayat Deteksi', icon: History },
   { id: 'config', label: 'Konfigurasi Gateway', icon: Settings },
 ];
 
-const Sidebar = ({ activePage, onNavigate, gateways, activeDetections, isCollapsed }) => {
+const Sidebar = ({ activePage, onNavigate, gateways, activeDetections, registeredCards = [], isCollapsed }) => {
   const connectedCount = gateways.filter(g => g.status === 'connected').length;
   const errorCount = gateways.filter(g => g.status === 'error' || g.status === 'disconnected').length;
 
@@ -55,7 +59,7 @@ const Sidebar = ({ activePage, onNavigate, gateways, activeDetections, isCollaps
               Status Perangkat
             </span>
             <span className="text-xs font-bold text-[var(--success)] bg-[var(--success-bg)] px-2 py-0.5 rounded-full border border-[var(--success-border)]">
-              {connectedCount}/7 Online
+              {connectedCount}/{gateways.length} Online
             </span>
           </div>
 
@@ -75,7 +79,7 @@ const Sidebar = ({ activePage, onNavigate, gateways, activeDetections, isCollaps
           </div>
 
           <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-            <span>7 Titik Gateway</span>
+            <span>{gateways.length} Titik Gateway</span>
             {errorCount > 0 ? (
               <span className="text-[var(--danger)] font-semibold">{errorCount} Perlu Dicek</span>
             ) : (
@@ -95,7 +99,7 @@ const Sidebar = ({ activePage, onNavigate, gateways, activeDetections, isCollaps
         {NAV_ITEMS.map(item => {
           const Icon = item.icon;
           const isActive = activePage === item.id;
-          const badge = item.id === 'cards' ? activeDetections.length : null;
+          const badge = item.id === 'cards' ? activeDetections.length : item.id === 'registered-cards' ? registeredCards.length : null;
           return (
             <button
               key={item.id}
