@@ -153,7 +153,7 @@ const GatewayStatus = ({
         const ttl = data.ttl || 63;
         setPingResults(prev => ({ ...prev, [gw.id]: `${ms}ms` }));
         if (onUpdateGateway) {
-          onUpdateGateway(gw.id, { status: 'connected', latency: ms, signalStrength: 88 });
+          onUpdateGateway(gw.id, { status: 'connected', latency: ms, signalStrength: 88, issue: undefined });
         }
         if (onAddNotification) {
           onAddNotification(
@@ -163,32 +163,38 @@ const GatewayStatus = ({
           );
         }
       } else {
+        // Ping gagal (RTO) -> Terapkan status Error & alihkan kartu yang terdeteksi ke gateway terdekat yang aktif
         setPingResults(prev => ({ ...prev, [gw.id]: 'RTO' }));
+        if (onUpdateGateway) {
+          onUpdateGateway(gw.id, {
+            status: 'error',
+            latency: null,
+            signalStrength: 0,
+            issue: 'Koneksi perangkat gateway terputus (RTO)',
+          });
+        }
         if (onAddNotification) {
           onAddNotification(
             'error',
             `Ping Gagal: ${gw.id}`,
-            `Perangkat ${gw.name} (${gw.ip}) tidak merespon (Request Time Out).`
+            `Perangkat ${gw.name} (${gw.ip}) tidak merespon (RTO). Status diatur ke Error.`
           );
         }
       }
     } catch (err) {
       setPingingId(null);
-      // Fallback
-      if (gw.ip === '10.1.5.140' || gw.status === 'connected') {
-        const ms = 15;
-        setPingResults(prev => ({ ...prev, [gw.id]: `${ms}ms` }));
-        if (onUpdateGateway) {
-          onUpdateGateway(gw.id, { status: 'connected', latency: ms });
-        }
-        if (onAddNotification) {
-          onAddNotification('success', `Ping Berhasil: ${gw.id}`, `Respon dari ${gw.ip}: ${ms}ms TTL=63.`);
-        }
-      } else {
-        setPingResults(prev => ({ ...prev, [gw.id]: 'RTO' }));
-        if (onAddNotification) {
-          onAddNotification('error', `Ping Gagal: ${gw.id}`, `Perangkat ${gw.name} (${gw.ip}) tidak merespon.`);
-        }
+      // Gagal komunikasi/error jaringan -> Terapkan status Error
+      setPingResults(prev => ({ ...prev, [gw.id]: 'ERROR' }));
+      if (onUpdateGateway) {
+        onUpdateGateway(gw.id, {
+          status: 'error',
+          latency: null,
+          signalStrength: 0,
+          issue: 'Gagal menghubungi perangkat (Network Error)',
+        });
+      }
+      if (onAddNotification) {
+        onAddNotification('error', `Ping Gagal: ${gw.id}`, `Gagal terhubung ke ${gw.name} (${gw.ip}). Status diatur ke Error.`);
       }
     }
 

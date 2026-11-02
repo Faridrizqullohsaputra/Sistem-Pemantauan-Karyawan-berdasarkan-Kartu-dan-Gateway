@@ -7,6 +7,33 @@ import {
   getGateway,
 } from '../data/simulationData';
 
+// Hitung jarak Euclidean / koordinat meter antar dua Gateway
+export const calculateGatewayDistance = (gwA, gwB) => {
+  const lat1 = gwA?.lat ?? -6.8678;
+  const lng1 = gwA?.lng ?? 112.4168;
+  const lat2 = gwB?.lat ?? -6.8678;
+  const lng2 = gwB?.lng ?? 112.4168;
+  const dLat = (lat2 - lat1) * 111320;
+  const dLng = (lng2 - lng1) * 111320 * Math.cos((lat1 * Math.PI) / 180);
+  return Math.hypot(dLat, dLng);
+};
+
+// Cari Gateway terdekat yang tersedia (status connected)
+export const findNearestAvailableGateway = (targetGw, gatewayList) => {
+  const available = (gatewayList || []).filter(g => g.id !== targetGw?.id && g.status === 'connected');
+  if (available.length === 0) return null;
+  let nearest = available[0];
+  let minDistance = calculateGatewayDistance(targetGw, nearest);
+  for (let i = 1; i < available.length; i++) {
+    const dist = calculateGatewayDistance(targetGw, available[i]);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearest = available[i];
+    }
+  }
+  return { gateway: nearest, distanceMeters: Math.round(minDistance) };
+};
+
 export const useSimulation = () => {
   // Gateways state (persisted to localStorage)
   const [gateways, setGateways] = useState(() => {
@@ -15,20 +42,18 @@ export const useSimulation = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Pertahankan SEMUA gateway yang ada di parsed (termasuk gateway baru yang ditambahkan pengguna)
-          // dan lengkapi dengan metadata default bila ID cocok
-          return parsed.map(savedGw => {
+          const existingIds = new Set(parsed.map(g => g.id));
+          const mergedList = parsed.map(savedGw => {
             const defGw = GATEWAYS.find(d => d.id === savedGw.id);
-            const merged = defGw ? { ...defGw, ...savedGw } : savedGw;
-            // Pastikan gateway 10.1.5.140 (GW-06) aktif & tidak terjebak status 'error' lama
-            if (merged.ip === '10.1.5.140' || merged.id === 'GW-06') {
-              merged.status = 'connected';
-              merged.latency = merged.latency || 15;
-              merged.signalStrength = merged.signalStrength || 88;
-              delete merged.issue;
-            }
-            return merged;
+            return defGw ? { ...defGw, ...savedGw } : savedGw;
           });
+          // Pastikan semua gateway standar (termasuk GW-08) tersedia jika belum ada di localStorage
+          for (const defGw of GATEWAYS) {
+            if (!existingIds.has(defGw.id)) {
+              mergedList.push(defGw);
+            }
+          }
+          return mergedList;
         }
       }
     } catch (e) {
@@ -54,7 +79,13 @@ export const useSimulation = () => {
         if (data.success) {
           setGateways(prev => prev.map(g =>
             (g.ip === '10.1.5.140' || g.id === 'GW-06')
-              ? { ...g, status: 'connected', latency: data.latency || 15, signalStrength: 88, lastSeen: new Date().toISOString() }
+              ? { ...g, status: 'connected', latency: data.latency || 15, signalStrength: 88, lastSeen: new Date().toISOString(), issue: undefined }
+              : g
+          ));
+        } else {
+          setGateways(prev => prev.map(g =>
+            (g.ip === '10.1.5.140' || g.id === 'GW-06')
+              ? { ...g, status: 'error', latency: null, signalStrength: 0, issue: 'Koneksi perangkat terputus (RTO)' }
               : g
           ));
         }
@@ -144,92 +175,129 @@ export const useSimulation = () => {
     return registeredCards.find(c => c.cardId === cardId);
   }, [registeredCards]);
 
+  // Handle when a gateway errors: apply error status & reassign detected cards to nearest available gateway
+  const handleGatewayError = useCallback((gwId, reason = 'Koneksi perangkat gateway terputus (RTO)') => {
+    const targetGw = gateways.find(g => g.id === gwId);
+    const nowIso = new Date().toISOString();
+
+    // 1. Terapkan status error pada Gateway
+    setGateways(prev => prev.map(g =>
+      g.id === gwId
+        ? { ...g, status: 'error', latency: null, signalStrength: 0, issue: reason, lastSeen: nowIso }
+        : g
+    ));
+
+    // 2. Alihkan kartu yang sedang terdeteksi di gateway yang error ke gateway terdekat yang aktif
+    setActiveDetections(prevDetections => {
+      const cardsOnThisGw = prevDetections.filter(d => d.gatewayId === gwId);
+      if (cardsOnThisGw.length === 0) {
+        return prevDetections;
+      }
+
+      // Cari gateway yang sedang aktif (connected) selain yang error
+      const currentAvailable = gateways.filter(g => g.id !== gwId && g.status === 'connected');
+
+      if (currentAvailable.length === 0) {
+        addNotification(
+          'error',
+          `Gateway ${targetGw?.name || gwId} Offline`,
+          `${cardsOnThisGw.length} kartu dikeluarkan dari jangkauan karena seluruh Gateway sedang offline.`
+        );
+        return prevDetections.filter(d => d.gatewayId !== gwId);
+      }
+
+      // Temukan gateway aktif terdekat berdasarkan koordinat GPS
+      const nearestResult = findNearestAvailableGateway(targetGw || { id: gwId }, currentAvailable);
+      const nearestGw = nearestResult?.gateway || currentAvailable[0];
+      const distInfo = nearestResult?.distanceMeters ? ` (~${nearestResult.distanceMeters}m)` : '';
+
+      // Buat rekaman riwayat pengalihan otomatis
+      const newHistories = cardsOnThisGw.map(det => {
+        const holder = findCardHolder(det.cardId);
+        const newHistId = ++histIdRef.current;
+        return {
+          id: `HIST-${newHistId}`,
+          cardId: det.cardId,
+          holderName: holder?.name || 'Pemegang Kartu',
+          department: holder?.department || '—',
+          gatewayId: nearestGw.id,
+          gatewayName: nearestGw.name,
+          location: nearestGw.location,
+          detectedAt: nowIso,
+          distanceAvailable: true,
+          distance: 25,
+          cardStatus: holder?.status || 'active',
+          cardType: holder?.cardType || 'employee',
+          isSimulated: false,
+          note: `Dialihkan otomatis dari ${targetGw?.name || gwId} karena gateway error (RTO)`,
+        };
+      });
+
+      setHistoryRecords(prevHist => [...newHistories, ...prevHist]);
+
+      addNotification(
+        'warning',
+        `⚠️ ${targetGw?.name || gwId} Error (RTO)`,
+        `${cardsOnThisGw.length} kartu dialihkan otomatis ke gateway terdekat: ${nearestGw.name} (${nearestGw.id})${distInfo}.`
+      );
+
+      // Reassign all cards on this error gateway to the nearest available gateway
+      return prevDetections.map(d =>
+        d.gatewayId === gwId
+          ? { ...d, gatewayId: nearestGw.id, detectedAt: nowIso, distance: 25 }
+          : d
+      );
+    });
+  }, [gateways, findCardHolder, addNotification]);
+
   // Trigger detection of a specific card ID (Real or Manual)
-  // If card is NOT registered, it is captured as an UNKNOWN signal (not blocked)
+  // Ensures strictly 1 CARD = 1 GATEWAY (tidak pernah terdeteksi ganda di beberapa gateway)
   const detectCardById = useCallback((cardId, targetGatewayId = null) => {
     const cleanId = String(cardId).replace(/[: -]/g, '').toUpperCase();
-    const holder = registeredCards.find(c =>
-      c.cardId.toUpperCase() === cleanId ||
-      c.cardId.toUpperCase() === String(cardId).toUpperCase() ||
-      c.employeeId === cardId
-    );
+    const holder = registeredCards.find(c => {
+      const cClean = String(c.cardId || '').replace(/[: -]/g, '').toUpperCase();
+      return cClean === cleanId || c.employeeId === cardId;
+    });
 
-    const connectedGateways = gateways.filter(g => g.status === 'connected');
-    const availableGateways = connectedGateways.length > 0 ? connectedGateways : gateways;
-    const isAllGateways = targetGatewayId === 'ALL';
     const nowIso = new Date().toISOString();
+
+    // Tentukan gateway target secara spesifik
+    let targetGw = null;
+    if (targetGatewayId && targetGatewayId !== 'ALL') {
+      targetGw = gateways.find(g => g.id === targetGatewayId);
+    }
+    if (!targetGw) {
+      const connectedGateways = gateways.filter(g => g.status === 'connected');
+      targetGw = connectedGateways[0] || gateways[0];
+    }
+
+    // Jika gateway target berstatus error/disconnected, alihkan ke gateway aktif terdekat
+    let effectiveGw = targetGw;
+    if (effectiveGw && (effectiveGw.status === 'error' || effectiveGw.status === 'disconnected')) {
+      const activeGateways = gateways.filter(g => g.status === 'connected');
+      if (activeGateways.length > 0) {
+        const nearestResult = findNearestAvailableGateway(effectiveGw, activeGateways);
+        const nearestGw = nearestResult?.gateway || activeGateways[0];
+        addNotification(
+          'warning',
+          `Gateway ${effectiveGw.name} Sedang Error`,
+          `Deteksi kartu dialihkan ke gateway aktif terdekat: ${nearestGw.name} (${nearestGw.id}).`
+        );
+        effectiveGw = nearestGw;
+      }
+    }
 
     // === KARTU TIDAK TERDAFTAR: tangkap sebagai sinyal asing ===
     if (!holder) {
-      if (isAllGateways) {
-        const baseId = ++histIdRef.current;
-        histIdRef.current += availableGateways.length;
-
-        const newUnknownHistories = availableGateways.map((gw, idx) => ({
-          id: `HIST-${baseId + idx}`,
-          cardId: cleanId,
-          holderName: 'Kartu Tidak Dikenal',
-          department: '—',
-          gatewayId: gw.id,
-          gatewayName: gw.name,
-          location: gw.location,
-          detectedAt: nowIso,
-          distanceAvailable: false,
-          distance: null,
-          cardStatus: 'unknown',
-          cardType: 'unknown',
-          isSimulated: false,
-        }));
-
-        setHistoryRecords(prev => [...newUnknownHistories, ...prev]);
-
-        setUnknownCardSignals(prev => {
-          const already = prev.find(u => u.cardId === cleanId);
-          if (already) {
-            return prev.map(u => u.cardId === cleanId
-              ? { ...u, detectedAt: nowIso, count: (u.count || 1) + availableGateways.length, gatewayId: 'ALL', gatewayName: 'Semua Gateway' }
-              : u
-            );
-          }
-          return [{
-            cardId: cleanId,
-            gatewayId: 'ALL',
-            gatewayName: 'Semua Gateway',
-            location: 'Seluruh Area',
-            detectedAt: nowIso,
-            count: availableGateways.length,
-          }, ...prev];
-        });
-
-        setGateways(prev => prev.map(g =>
-          availableGateways.some(ag => ag.id === g.id)
-            ? { ...g, detectedCount: g.detectedCount + 1, lastSeen: nowIso }
-            : g
-        ));
-
-        addNotification(
-          'warning',
-          '⚠️ Sinyal Kartu Asing di Semua Gateway!',
-          `ID ${cleanId} tertangkap serentak oleh ${availableGateways.length} Gateway — kartu belum terdaftar. Daftarkan segera.`
-        );
-        return 'unknown';
-      }
-
-      // Single gateway for unknown card
-      const gateway = targetGatewayId
-        ? availableGateways.find(g => g.id === targetGatewayId) || availableGateways[0]
-        : availableGateways[0];
-
       const newId = ++histIdRef.current;
-
       const unknownRecord = {
         id: `HIST-${newId}`,
         cardId: cleanId,
         holderName: 'Kartu Tidak Dikenal',
         department: '—',
-        gatewayId: gateway?.id || 'GW-01',
-        gatewayName: gateway?.name || 'Gateway',
-        location: gateway?.location || '—',
+        gatewayId: effectiveGw.id,
+        gatewayName: effectiveGw.name,
+        location: effectiveGw.location,
         detectedAt: nowIso,
         distanceAvailable: false,
         distance: null,
@@ -244,30 +312,28 @@ export const useSimulation = () => {
         const already = prev.find(u => u.cardId === cleanId);
         if (already) {
           return prev.map(u => u.cardId === cleanId
-            ? { ...u, detectedAt: nowIso, count: (u.count || 1) + 1, gatewayId: gateway?.id, gatewayName: gateway?.name }
+            ? { ...u, detectedAt: nowIso, count: (u.count || 1) + 1, gatewayId: effectiveGw.id, gatewayName: effectiveGw.name }
             : u
           );
         }
         return [{
           cardId: cleanId,
-          gatewayId: gateway?.id || 'GW-01',
-          gatewayName: gateway?.name || 'Gateway',
-          location: gateway?.location || '—',
+          gatewayId: effectiveGw.id,
+          gatewayName: effectiveGw.name,
+          location: effectiveGw.location,
           detectedAt: nowIso,
           count: 1,
         }, ...prev];
       });
 
-      if (gateway) {
-        setGateways(prev => prev.map(g =>
-          g.id === gateway.id ? { ...g, detectedCount: g.detectedCount + 1, lastSeen: nowIso } : g
-        ));
-      }
+      setGateways(prev => prev.map(g =>
+        g.id === effectiveGw.id ? { ...g, detectedCount: g.detectedCount + 1, lastSeen: nowIso } : g
+      ));
 
       addNotification(
         'warning',
         '⚠️ Sinyal Kartu Asing Tertangkap!',
-        `ID ${cleanId} terdeteksi di ${gateway?.name || 'Gateway'} — kartu belum terdaftar. Daftarkan segera.`
+        `ID ${cleanId} terdeteksi di ${effectiveGw.name} — kartu belum terdaftar. Daftarkan segera.`
       );
       return 'unknown';
     }
@@ -277,72 +343,6 @@ export const useSimulation = () => {
       return false;
     }
 
-    if (availableGateways.length === 0) {
-      addNotification('error', 'Gateway Offline', 'Tidak ada perangkat Gateway aktif yang dapat menerima deteksi.');
-      return false;
-    }
-
-    // === DETEKSI PADA SEMUA GATEWAY SEKALIGUS (Multi-Gateway Broadcast Reception) ===
-    if (isAllGateways) {
-      const baseId = ++histIdRef.current;
-      histIdRef.current += availableGateways.length;
-
-      // History record for each gateway to reflect multi-sensor reception
-      const multiHistRecords = availableGateways.map((gw, idx) => ({
-        id: `HIST-${baseId + idx}`,
-        cardId: holder.cardId,
-        holderName: holder.name,
-        department: holder.department || '—',
-        gatewayId: gw.id,
-        gatewayName: gw.name,
-        location: gw.location,
-        detectedAt: nowIso,
-        distanceAvailable: true,
-        distance: Math.floor(Math.random() * 25) + 10,
-        cardStatus: holder.status,
-        cardType: holder.cardType || 'employee',
-        isSimulated: false,
-      }));
-
-      // Active detection placed at primary gateway (first one)
-      const primaryGateway = availableGateways[0];
-      const detection = {
-        id: `DET-${baseId}`,
-        cardId: holder.cardId,
-        gatewayId: primaryGateway.id,
-        detectedAt: nowIso,
-        distanceAvailable: true,
-        distance: 15,
-        isActive: true,
-        isSimulated: false,
-      };
-
-      setActiveDetections(prev => {
-        const withoutThis = prev.filter(d => d.cardId !== holder.cardId);
-        return [detection, ...withoutThis];
-      });
-
-      setHistoryRecords(prev => [...multiHistRecords, ...prev]);
-      setTotalDetectionsToday(prev => prev + availableGateways.length);
-      setGateways(prev => prev.map(g =>
-        availableGateways.some(ag => ag.id === g.id)
-          ? { ...g, detectedCount: g.detectedCount + 1, lastSeen: nowIso }
-          : g
-      ));
-
-      addNotification(
-        'success',
-        'Sinyal Tertangkap di Semua Gateway!',
-        `Kartu ${holder.name} (${holder.cardId}) berhasil diterima serentak oleh seluruh ${availableGateways.length} Gateway.`
-      );
-      return true;
-    }
-
-    // Single gateway detection
-    const gateway = targetGatewayId
-      ? availableGateways.find(g => g.id === targetGatewayId) || availableGateways[0]
-      : availableGateways[0];
-
     const newId = ++histIdRef.current;
 
     const histRecord = {
@@ -350,9 +350,9 @@ export const useSimulation = () => {
       cardId: holder.cardId,
       holderName: holder.name,
       department: holder.department || '—',
-      gatewayId: gateway.id,
-      gatewayName: gateway.name,
-      location: gateway.location,
+      gatewayId: effectiveGw.id,
+      gatewayName: effectiveGw.name,
+      location: effectiveGw.location,
       detectedAt: nowIso,
       distanceAvailable: true,
       distance: 50,
@@ -361,25 +361,10 @@ export const useSimulation = () => {
       isSimulated: false,
     };
 
-    // Check if already active
-    const alreadyActive = activeDetections.find(d => d.cardId === holder.cardId);
-    if (alreadyActive) {
-      setActiveDetections(prev => prev.map(d =>
-        d.cardId === holder.cardId ? { ...d, gatewayId: gateway.id, detectedAt: nowIso } : d
-      ));
-      setHistoryRecords(prev => [histRecord, ...prev]);
-      setTotalDetectionsToday(prev => prev + 1);
-      setGateways(prev => prev.map(g =>
-        g.id === gateway.id ? { ...g, detectedCount: g.detectedCount + 1, lastSeen: nowIso } : g
-      ));
-      addNotification('success', 'Sinyal Kartu Fisik Diterima!', `${holder.name} (${holder.cardId}) terdeteksi di ${gateway.name}`);
-      return true;
-    }
-
     const detection = {
       id: `DET-${newId}`,
       cardId: holder.cardId,
-      gatewayId: gateway.id,
+      gatewayId: effectiveGw.id,
       detectedAt: nowIso,
       distanceAvailable: true,
       distance: 50,
@@ -387,16 +372,31 @@ export const useSimulation = () => {
       isSimulated: false,
     };
 
-    setActiveDetections(prev => [detection, ...prev]);
+    // STRICT CARD UNIQUENESS GUARANTEE:
+    // Hapus kartu ini dari gateway manapun sebelumnya di activeDetections
+    // sehingga kartu HANYA terdeteksi di satu gateway (effectiveGw) saja!
+    setActiveDetections(prev => {
+      const holderClean = String(holder.cardId).replace(/[: -]/g, '').toUpperCase();
+      const withoutThisCard = prev.filter(d => {
+        const dClean = String(d.cardId || '').replace(/[: -]/g, '').toUpperCase();
+        return dClean !== cleanId && dClean !== holderClean;
+      });
+      return [detection, ...withoutThisCard];
+    });
+
     setHistoryRecords(prev => [histRecord, ...prev]);
     setTotalDetectionsToday(prev => prev + 1);
     setGateways(prev => prev.map(g =>
-      g.id === gateway.id ? { ...g, detectedCount: g.detectedCount + 1, lastSeen: nowIso } : g
+      g.id === effectiveGw.id ? { ...g, lastSeen: nowIso } : g
     ));
 
-    addNotification('success', 'Sinyal Kartu Fisik Tertangkap!', `${holder.name} (${holder.cardId}) berhasil ditangkap oleh ${gateway.name}`);
+    addNotification(
+      'success',
+      'Sinyal Kartu Fisik Tertangkap!',
+      `${holder.name} (${holder.cardId}) terdeteksi pada ${effectiveGw.name} (${effectiveGw.id})`
+    );
     return true;
-  }, [registeredCards, activeDetections, gateways, addNotification]);
+  }, [registeredCards, gateways, addNotification]);
 
   // Quick-register an unknown card signal that was already captured
   const registerUnknownCard = useCallback((unknownSignal, cardData) => {
@@ -407,6 +407,7 @@ export const useSimulation = () => {
   }, []);
 
   // Batch detect all active cards at target gateway (or across all gateways)
+  // Ensures strictly 1 CARD = 1 GATEWAY
   const detectAllActiveCards = useCallback((targetGatewayId = null) => {
     const activeCards = registeredCards.filter(c => c.status === 'active');
     if (activeCards.length === 0) {
@@ -424,17 +425,13 @@ export const useSimulation = () => {
     const nowIso = new Date().toISOString();
     const isAllGateways = targetGatewayId === 'ALL';
 
-    // === TANGKAP SEMUA KARTU DI SEMUA GATEWAY SECARA MENYELURUH ===
+    // === SEBAR KARTU AKTIF KE GATEWAY YANG TERSEDIA SECARA MERATA (1 KARTU = 1 GATEWAY) ===
     if (isAllGateways) {
       const newDetections = [];
       const newHistory = [];
-      const gwCounts = {};
-      availableGateways.forEach(g => { gwCounts[g.id] = 0; });
 
-      // Distribute each active card across the gateways
       activeCards.forEach((holder, idx) => {
         const assignedGw = availableGateways[idx % availableGateways.length];
-        gwCounts[assignedGw.id] = (gwCounts[assignedGw.id] || 0) + 1;
         const newId = ++histIdRef.current;
 
         newDetections.push({
@@ -465,31 +462,33 @@ export const useSimulation = () => {
         });
       });
 
+      // Filter out old detections of these cards, ensuring each card is only at its assigned gateway
       setActiveDetections(prev => {
-        const otherCards = prev.filter(d => !activeCards.some(ac => ac.cardId === d.cardId));
-        return [...newDetections, ...otherCards];
+        const activeIds = new Set(activeCards.map(c => String(c.cardId).replace(/[: -]/g, '').toUpperCase()));
+        const remaining = prev.filter(d => !activeIds.has(String(d.cardId).replace(/[: -]/g, '').toUpperCase()));
+        return [...newDetections, ...remaining];
       });
+
       setHistoryRecords(prev => [...newHistory, ...prev]);
       setTotalDetectionsToday(prev => prev + activeCards.length);
-      setGateways(prev => prev.map(g => {
-        const count = gwCounts[g.id] || 0;
-        return count > 0
-          ? { ...g, detectedCount: g.detectedCount + count, lastSeen: nowIso }
-          : g;
-      }));
 
       addNotification(
         'success',
-        'Seluruh Gateway & Kartu Berhasil Ditangkap!',
-        `${activeCards.length} kartu aktif berhasil ditangkap dan dipetakan ke seluruh ${availableGateways.length} Gateway.`
+        'Seluruh Kartu Berhasil Dipetakan!',
+        `${activeCards.length} kartu aktif berhasil ditangkap dan didistribusikan ke ${availableGateways.length} Gateway.`
       );
       return true;
     }
 
     // Specific Gateway detection for all active cards
-    const gateway = targetGatewayId
-      ? availableGateways.find(g => g.id === targetGatewayId) || availableGateways[0]
-      : availableGateways[0];
+    let gateway = gateways.find(g => g.id === targetGatewayId) || availableGateways[0];
+    if (gateway.status === 'error' || gateway.status === 'disconnected') {
+      const nearestResult = findNearestAvailableGateway(gateway, availableGateways);
+      if (nearestResult) {
+        gateway = nearestResult.gateway;
+        addNotification('warning', 'Gateway Error', `Gateway ${targetGatewayId} sedang error (RTO), dialihkan ke ${gateway.name} (${gateway.id}).`);
+      }
+    }
 
     const newDetections = [];
     const newHistory = [];
@@ -525,19 +524,18 @@ export const useSimulation = () => {
     });
 
     setActiveDetections(prev => {
-      const otherCards = prev.filter(d => !activeCards.some(ac => ac.cardId === d.cardId));
-      return [...newDetections, ...otherCards];
+      const activeIds = new Set(activeCards.map(c => String(c.cardId).replace(/[: -]/g, '').toUpperCase()));
+      const remaining = prev.filter(d => !activeIds.has(String(d.cardId).replace(/[: -]/g, '').toUpperCase()));
+      return [...newDetections, ...remaining];
     });
+
     setHistoryRecords(prev => [...newHistory, ...prev]);
     setTotalDetectionsToday(prev => prev + activeCards.length);
-    setGateways(prev => prev.map(g =>
-      g.id === gateway.id ? { ...g, detectedCount: g.detectedCount + activeCards.length, lastSeen: nowIso } : g
-    ));
 
     addNotification(
       'success',
       'Seluruh Kartu Aktif Tertangkap!',
-      `${activeCards.length} kartu aktif berhasil ditangkap oleh sensor ${gateway.name}`
+      `${activeCards.length} kartu aktif berhasil ditangkap oleh sensor ${gateway.name} (${gateway.id})`
     );
     return true;
   }, [registeredCards, gateways, addNotification]);
@@ -772,33 +770,71 @@ export const useSimulation = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const syncNetworkData = useCallback(async () => {
     setIsSyncing(true);
-    let ping140 = null;
-    try {
-      const res = await fetch('/api/gateway/ping?ip=10.1.5.140&id=GW-06');
-      ping140 = await res.json();
-    } catch (e) {}
+    addNotification('info', 'Uji Jaringan Dimulai', `Menguji komunikasi ping ke seluruh ${gateways.length} perangkat Gateway...`);
+
+    const pingResults = await Promise.allSettled(
+      gateways.map(async (gw) => {
+        try {
+          const res = await fetch(`/api/gateway/ping?ip=${encodeURIComponent(gw.ip)}&id=${encodeURIComponent(gw.id)}`);
+          const data = await res.json();
+          return {
+            id: gw.id,
+            success: !!data.success,
+            latency: data.latency,
+            ttl: data.ttl,
+          };
+        } catch (e) {
+          return { id: gw.id, success: false };
+        }
+      })
+    );
+
+    let onlineCount = 0;
+    let errorCount = 0;
+    const erroredGwIds = [];
 
     setGateways(prev => prev.map(g => {
-      if ((g.ip === '10.1.5.140' || g.id === 'GW-06') && ping140?.success) {
+      const match = pingResults.find(r => r.status === 'fulfilled' && r.value.id === g.id);
+      const isOnline = match && match.value.success;
+
+      if (isOnline) {
+        onlineCount++;
         return {
           ...g,
           status: 'connected',
-          latency: ping140.latency || 15,
+          latency: match.value.latency || 15,
           signalStrength: 88,
+          lastSeen: new Date().toISOString(),
+          issue: undefined,
+        };
+      } else {
+        errorCount++;
+        erroredGwIds.push(g.id);
+        return {
+          ...g,
+          status: 'error',
+          latency: null,
+          signalStrength: 0,
+          issue: 'Koneksi perangkat gateway terputus (RTO)',
           lastSeen: new Date().toISOString(),
         };
       }
-      return {
-        ...g,
-        lastSeen: g.status === 'connected' ? new Date().toISOString() : g.lastSeen,
-        signalStrength: g.status === 'connected'
-          ? Math.max(75, Math.min(99, g.signalStrength + Math.floor(Math.random() * 5) - 2))
-          : g.signalStrength,
-      };
     }));
+
+    // Otomatis alihkan kartu pada gateway yang error ke gateway aktif terdekat
+    if (erroredGwIds.length > 0) {
+      erroredGwIds.forEach(id => {
+        handleGatewayError(id, 'Koneksi perangkat gateway terputus (RTO)');
+      });
+    }
+
     setIsSyncing(false);
-    addNotification('success', 'Sinkronisasi Jaringan Berhasil', `Data seluruh ${gateways.length} perangkat Gateway telah diperbarui.`);
-  }, [addNotification, gateways.length]);
+    addNotification(
+      errorCount > 0 ? 'warning' : 'success',
+      'Diagnostik Jaringan Selesai',
+      `Hasil Uji Ping: ${onlineCount} Gateway Online, ${errorCount} Gateway Error.`
+    );
+  }, [gateways, handleGatewayError, addNotification]);
 
   // Update specific gateway position & optional radius
   const updateGatewayPosition = useCallback((gwId, lat, lng, radius = null) => {
@@ -828,6 +864,7 @@ export const useSimulation = () => {
   const updateGatewayDevice = useCallback((gwId, updatedData) => {
     setGateways(prev => prev.map(g => {
       if (g.id === gwId) {
+        const nextStatus = updatedData.status || g.status;
         const updated = {
           ...g,
           name: updatedData.name ? updatedData.name.trim() : g.name,
@@ -837,8 +874,10 @@ export const useSimulation = () => {
           authType: updatedData.authType || g.authType,
           maxPacketSize: updatedData.maxPacketSize ? Number(updatedData.maxPacketSize) : g.maxPacketSize,
           radius: updatedData.radius ? Number(updatedData.radius) : g.radius,
-          status: updatedData.status || g.status,
-          // Location and GPS coordinates are also fully editable
+          status: nextStatus,
+          latency: updatedData.latency !== undefined ? updatedData.latency : (nextStatus === 'error' ? null : g.latency),
+          signalStrength: updatedData.signalStrength !== undefined ? updatedData.signalStrength : (nextStatus === 'error' ? 0 : g.signalStrength),
+          issue: updatedData.issue !== undefined ? updatedData.issue : (nextStatus === 'error' ? 'Koneksi perangkat terputus' : g.issue),
           location: updatedData.location ? updatedData.location.trim() : g.location,
           lat: updatedData.lat !== undefined && !isNaN(Number(updatedData.lat)) ? Number(updatedData.lat) : g.lat,
           lng: updatedData.lng !== undefined && !isNaN(Number(updatedData.lng)) ? Number(updatedData.lng) : g.lng,
@@ -848,12 +887,18 @@ export const useSimulation = () => {
       }
       return g;
     }));
-    addNotification(
-      'success',
-      'Konfigurasi Gateway Disimpan',
-      `Parameter perangkat dan koordinat lokasi ${gwId} berhasil diperbarui di peta.`
-    );
-  }, [addNotification]);
+
+    // Jika status diatur menjadi error atau disconnected, alihkan kartu di gateway ini ke gateway terdekat
+    if (updatedData.status === 'error' || updatedData.status === 'disconnected') {
+      handleGatewayError(gwId, updatedData.issue || 'Status Gateway diatur ke Error');
+    } else {
+      addNotification(
+        'success',
+        'Konfigurasi Gateway Disimpan',
+        `Parameter perangkat ${gwId} berhasil diperbarui.`
+      );
+    }
+  }, [handleGatewayError, addNotification]);
 
   // Add a brand-new Gateway to the system
   const addGateway = useCallback((newGwData) => {
@@ -1022,6 +1067,7 @@ export const useSimulation = () => {
   return {
     gateways,
     setGateways,
+    handleGatewayError,
     updateGatewayPosition,
     updateGatewayDevice,
     resetGatewayPositions,

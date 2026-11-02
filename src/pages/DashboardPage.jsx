@@ -227,9 +227,9 @@ const DashboardPage = ({
       />
 
       {/* ── Main Grid ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
         {/* Left: Gateway Status */}
-        <div className="xl:col-span-1 flex flex-col">
+        <div className="xl:col-span-1 flex flex-col xl:sticky xl:top-5">
           <GatewayStatus
             gateways={gateways}
             activeDetections={activeDetections}

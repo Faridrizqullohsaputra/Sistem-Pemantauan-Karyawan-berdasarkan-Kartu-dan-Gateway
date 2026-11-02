@@ -26,7 +26,10 @@ const HardwareCardModal = ({
   onScanBluetooth,
   isScanningBLE = false,
 }) => {
-  const [selectedGwId, setSelectedGwId] = useState('ALL');
+  const [selectedGwId, setSelectedGwId] = useState(() => {
+    const firstConnected = gateways.find(g => g.status === 'connected');
+    return firstConnected?.id || gateways[0]?.id || 'GW-01';
+  });
   const [selectedCardId, setSelectedCardId] = useState('ALL');
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('gateway'); // 'gateway' | 'bluetooth' | 'webhook'
@@ -36,16 +39,23 @@ const HardwareCardModal = ({
   const connectedGateways = gateways.filter(g => g.status === 'connected');
   const isAllGateways = selectedGwId === 'ALL';
 
-  // Sync selected card when modal opens or initialCardId changes
+  // Sync selected card & gateway when modal opens or initialCardId changes
   useEffect(() => {
     if (isOpen) {
       if (initialCardId && activeCards.some(c => c.cardId === initialCardId)) {
         setSelectedCardId(initialCardId);
       } else {
-        setSelectedCardId('ALL');
+        setSelectedCardId(activeCards[0]?.cardId || 'ALL');
       }
+
+      // Pastikan gateway default adalah gateway yang valid dan online jika ada
+      setSelectedGwId(prev => {
+        if (prev && prev !== 'ALL' && gateways.some(g => g.id === prev)) return prev;
+        const online = gateways.find(g => g.status === 'connected');
+        return online?.id || gateways[0]?.id || 'GW-01';
+      });
     }
-  }, [isOpen, initialCardId, activeCards.length]);
+  }, [isOpen, initialCardId, activeCards.length, gateways]);
 
   if (!isOpen) return null;
 
@@ -55,9 +65,10 @@ const HardwareCardModal = ({
   const selectedCard = selectedCardId !== 'ALL' ? activeCards.find(c => c.cardId === selectedCardId) : null;
   const targetCardIdForCurl = selectedCard ? selectedCard.cardId : (activeCards[0]?.cardId || 'BC572914269D');
 
+  const effectiveCurlGwId = selectedGw?.id || (gateways[0]?.id || 'GW-01');
   const curlCommand = `curl -X POST http://localhost:5173/api/gateway/report \\
   -H "Content-Type: application/json" \\
-  -d '{"cardId":"${targetCardIdForCurl}","gatewayId":"${selectedGwId}","rssi":-58}'`;
+  -d '{"cardId":"${targetCardIdForCurl}","gatewayId":"${effectiveCurlGwId}","rssi":-58}'`;
 
   const handleCopyCurl = () => {
     navigator.clipboard.writeText(curlCommand);
@@ -124,11 +135,11 @@ const HardwareCardModal = ({
             <div>
               <label className="text-xs font-bold text-[var(--text-primary)] block mb-1.5 flex items-center justify-between">
                 <span>Gateway Sensor Penerima:</span>
-                {isAllGateways && (
-                  <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-semibold flex items-center gap-1">
-                    <Sparkles size={11} /> Semua Gateway
-                  </span>
-                )}
+                <span className={`text-[10px] font-semibold flex items-center gap-1 ${
+                  selectedGw?.status === 'connected' ? 'text-emerald-500' : 'text-rose-500'
+                }`}>
+                  {isAllGateways ? '🌐 Multi-Gateway' : selectedGw?.status === 'connected' ? '● Online' : '▲ Offline / Error'}
+                </span>
               </label>
               <select
                 value={selectedGwId}
@@ -137,14 +148,16 @@ const HardwareCardModal = ({
                   isAllGateways ? 'border-indigo-500/50 bg-indigo-500/5 font-bold text-indigo-600 dark:text-indigo-400' : ''
                 }`}
               >
-                <option value="ALL">
-                  🌐 Semua Gateway ({gateways.length} Sensor Gateway)
-                </option>
                 {gateways.map(gw => (
                   <option key={gw.id} value={gw.id}>
-                    {gw.id} — {gw.name}
+                    {gw.id} — {gw.name} ({gw.status === 'connected' ? 'Online' : 'Error / Offline'})
                   </option>
                 ))}
+                {activeCards.length > 1 && (
+                  <option value="ALL">
+                    🌐 Sebar Kartu ke Semua Gateway ({gateways.length} Gateway)
+                  </option>
+                )}
               </select>
             </div>
 
@@ -374,8 +387,8 @@ const HardwareCardModal = ({
 
                 <p className="text-[11px] text-[var(--text-muted)] text-center">
                   {isAllGateways
-                    ? `*Deteksi diverifikasi serentak oleh seluruh jaringan ${gateways.length} Gateway dan dipetakan ke peta live`
-                    : `*Deteksi diverifikasi otomatis oleh Gateway ${selectedGw?.id} dan dipetakan ke koordinat lokasi`}
+                    ? `*Kartu didistribusikan ke seluruh jaringan ${gateways.length} Gateway (1 kartu = 1 gateway unik)`
+                    : `*Deteksi diverifikasi khusus pada ${selectedGw?.name || selectedGwId} — 1 kartu hanya terdeteksi pada 1 gateway`}
                 </p>
               </div>
             )}

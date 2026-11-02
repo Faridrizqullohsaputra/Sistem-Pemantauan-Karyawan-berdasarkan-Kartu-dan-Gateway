@@ -20,7 +20,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { GATEWAYS, SHOREBASE_PRESETS } from '../data/simulationData';
+import { GATEWAYS } from '../data/simulationData';
 
 const AUTH_TYPES = ['Bearer Token', 'API Key', 'Basic Auth', 'No Authentication'];
 const SERVICE_TYPES = ['HTTP', 'HTTPS', 'WebSocket', 'MQTT'];
@@ -36,11 +36,7 @@ const GatewayConfigCard = ({ gw, onSelect, isSelected }) => {
   return (
     <button
       onClick={() => onSelect(gw)}
-      className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
-        isSelected
-          ? 'bg-[var(--brand-bg)] border-[var(--brand)] shadow-xs ring-1 ring-[var(--brand)]'
-          : 'bg-[var(--bg-subtle)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
-      }`}
+      className={`gw-list-card ${isSelected ? 'selected' : ''}`}
     >
       <div className="flex items-center gap-2 mb-1.5">
         <span
@@ -236,21 +232,6 @@ const GatewayConfiguration = ({
     }
   };
 
-  const handleApplyPreset = (preset) => {
-    setForm(f => ({
-      ...f,
-      location: preset.name,
-      zone: preset.zone,
-      lat: preset.lat,
-      lng: preset.lng,
-    }));
-    onAddNotification?.(
-      'info',
-      'Preset Koordinat Dimuat',
-      `Koordinat ${preset.name} [${preset.lat}, ${preset.lng}] diterapkan ke formulir.`
-    );
-  };
-
   const handleResetToCurrent = () => {
     if (activeGw) {
       setForm({
@@ -304,33 +285,40 @@ const GatewayConfiguration = ({
     onAddNotification?.('info', 'Uji Jaringan', `Menguji komunikasi jaringan ke ${targetIp || form.url}...`);
 
     try {
-      const res = await fetch(`/api/gateway/ping?ip=${encodeURIComponent(targetIp)}&id=${encodeURIComponent(form.id)}`);
+      const res = await fetch(`/api/gateway/ping?ip=${encodeURIComponent(targetIp)}&id=${encodeURIComponent(activeGw?.id || selectedGwId || 'GW-01')}`);
       const data = await res.json();
 
       if (data.success) {
         const ms = data.latency || 15;
         const ttl = data.ttl || 63;
         setTestStatus('success');
-        setForm(prev => ({ ...prev, status: 'connected', latency: ms }));
+        setForm(prev => ({ ...prev, status: 'connected', latency: ms, signalStrength: 88, issue: undefined }));
         onAddNotification?.(
           'success',
           'Koneksi Berhasil!',
-          `Perangkat ${form.name} (${targetIp}) aktif & merespon! Latensi: ${ms}ms (TTL=${ttl}).`
+          `Perangkat ${form.name || targetIp} (${targetIp}) aktif & merespon! Latensi: ${ms}ms (TTL=${ttl}).`
         );
       } else {
         setTestStatus('failed');
-        onAddNotification?.('error', 'Koneksi Gagal', `Tidak dapat terhubung ke ${targetIp}. Gateway tidak merespon (RTO).`);
+        setForm(prev => ({
+          ...prev,
+          status: 'error',
+          latency: null,
+          signalStrength: 0,
+          issue: 'Koneksi perangkat gateway terputus (RTO)',
+        }));
+        onAddNotification?.('error', 'Koneksi Gagal', `Tidak dapat terhubung ke ${targetIp}. Gateway tidak merespon (RTO). Status diterapkan Error.`);
       }
     } catch (err) {
-      // Fallback
-      if (targetIp === '10.1.5.140' || form.status === 'connected') {
-        setTestStatus('success');
-        setForm(prev => ({ ...prev, status: 'connected', latency: 15 }));
-        onAddNotification?.('success', 'Koneksi Berhasil', `Koneksi ke perangkat ${form.name} (${targetIp}) aktif.`);
-      } else {
-        setTestStatus('failed');
-        onAddNotification?.('error', 'Koneksi Gagal', `Tidak dapat terhubung ke ${targetIp}. Periksa kembali alamat IP.`);
-      }
+      setTestStatus('failed');
+      setForm(prev => ({
+        ...prev,
+        status: 'error',
+        latency: null,
+        signalStrength: 0,
+        issue: 'Gagal menghubungi perangkat (Network Error)',
+      }));
+      onAddNotification?.('error', 'Koneksi Gagal', `Tidak dapat terhubung ke ${targetIp}. Status diterapkan Error.`);
     }
   };
 
@@ -390,10 +378,10 @@ const GatewayConfiguration = ({
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-5">
+      <div className="flex flex-col lg:flex-row gap-5 items-stretch">
         {/* Left: Gateway Selection List */}
-        <div className="w-full lg:w-80 flex-shrink-0 space-y-3">
-          <div className="card-container p-4 space-y-3">
+        <div className="w-full lg:w-80 flex-shrink-0 flex flex-col">
+          <div className="card-container p-4 flex flex-col gap-3 flex-1">
             <div className="flex items-center justify-between pb-2 border-b border-[var(--border-subtle)]">
               <h3 className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
                 <Server size={14} className="text-[var(--brand)]" />
@@ -418,7 +406,7 @@ const GatewayConfiguration = ({
               Tambah Gateway Baru
             </button>
 
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-2 flex-1 overflow-y-auto pr-1">
               {gateways.map(gw => (
                 <div key={gw.id} className="relative group">
                   <GatewayConfigCard
@@ -465,10 +453,10 @@ const GatewayConfiguration = ({
         </div>
 
         {/* Right: Configuration Form */}
-        <div className="flex-1 space-y-5">
+        <div className="flex-1 flex flex-col gap-5 min-w-0">
           {/* == FORM: TAMBAH GATEWAY BARU == */}
           {isAddingNew ? (
-            <form onSubmit={handleSaveNewGateway} className="space-y-5">
+            <form onSubmit={handleSaveNewGateway} className="flex flex-col gap-5">
               {/* Header Add New */}
               <div className="card-container p-5 bg-gradient-to-r from-emerald-900/10 via-teal-900/5 to-cyan-900/10 border-emerald-500/30">
                 <div className="flex items-center justify-between">
@@ -496,51 +484,109 @@ const GatewayConfiguration = ({
                   <h3 className="text-sm font-bold text-[var(--text-primary)]">Lokasi &amp; Koordinat GPS</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5">
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center gap-1">
+                      <MapPin size={12} className="text-indigo-500" />
                       Nama Titik Lokasi <span className="text-rose-500">*</span>
                     </label>
-                    <input type="text" value={newForm.location}
+                    <input
+                      type="text"
+                      value={newForm.location}
                       onChange={e => setNewForm(f => ({ ...f, location: e.target.value }))}
                       placeholder="Contoh: Titik Deteksi 08 — Dermaga Utara"
-                      className="input-styled font-medium" required />
+                      className="input-styled font-medium"
+                      required
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center gap-1">
-                      <Navigation size={12} className="text-indigo-500" /> Latitude GPS <span className="text-rose-500">*</span>
+                      <Globe size={12} className="text-indigo-500" />
+                      Zona Kawasan Shorebase
                     </label>
-                    <input type="number" step="any" value={newForm.lat}
-                      onChange={e => setNewForm(f => ({ ...f, lat: e.target.value }))}
-                      placeholder="-6.86780" className="input-styled font-mono font-bold text-indigo-600 dark:text-indigo-400" required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center gap-1">
-                      <Compass size={12} className="text-indigo-500" /> Longitude GPS <span className="text-rose-500">*</span>
-                    </label>
-                    <input type="number" step="any" value={newForm.lng}
-                      onChange={e => setNewForm(f => ({ ...f, lng: e.target.value }))}
-                      placeholder="112.41680" className="input-styled font-mono font-bold text-indigo-600 dark:text-indigo-400" required />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5">Zona Kawasan</label>
-                    <input type="text" value={newForm.zone}
+                    <input
+                      type="text"
+                      value={newForm.zone}
                       onChange={e => setNewForm(f => ({ ...f, zone: e.target.value }))}
                       placeholder="Contoh: Central Office, Marine Jetty, dll"
-                      className="input-styled" />
+                      className="input-styled font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Navigation size={12} className="text-indigo-500" />
+                        Latitude GPS <span className="text-rose-500">*</span>
+                      </span>
+                      <span className="text-[10px] text-[var(--text-muted)] font-mono">Format: -6.xxxxx</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={newForm.lat}
+                      onChange={e => setNewForm(f => ({ ...f, lat: e.target.value }))}
+                      placeholder="-6.86780"
+                      className="input-styled font-mono font-bold text-indigo-600 dark:text-indigo-400"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Compass size={12} className="text-indigo-500" />
+                        Longitude GPS <span className="text-rose-500">*</span>
+                      </span>
+                      <span className="text-[10px] text-[var(--text-muted)] font-mono">Format: 112.xxxxx</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={newForm.lng}
+                      onChange={e => setNewForm(f => ({ ...f, lng: e.target.value }))}
+                      placeholder="112.41680"
+                      className="input-styled font-mono font-bold text-indigo-600 dark:text-indigo-400"
+                      required
+                    />
                   </div>
                 </div>
-                {/* Quick Presets */}
-                <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-2">
-                  <span className="text-xs font-bold text-[var(--text-secondary)] block">Pilihan Cepat Koordinat Shorebase:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SHOREBASE_PRESETS.map((preset) => (
-                      <button key={preset.id} type="button"
-                        onClick={() => setNewForm(f => ({ ...f, location: preset.name, zone: preset.zone, lat: preset.lat, lng: preset.lng }))}
-                        className="px-2.5 py-1 rounded-lg bg-[var(--bg-surface)] hover:bg-[var(--brand-bg)] text-[var(--text-secondary)] hover:text-[var(--brand)] border border-[var(--border-subtle)] text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1">
-                        <MapPin size={10} className="text-amber-500" />
-                        <span>{preset.name}</span>
-                      </button>
-                    ))}
+
+                {/* Telemetri & Status Geografis Live */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-3 border-t border-[var(--border-subtle)]">
+                  <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                      <MapPin size={11} className="text-indigo-500" />
+                      <span>Koordinat GPS</span>
+                    </div>
+                    <div className="font-mono text-xs font-bold text-[var(--text-primary)] truncate">
+                      {newForm.lat && newForm.lng ? `${Number(newForm.lat).toFixed(5)}, ${Number(newForm.lng).toFixed(5)}` : 'Belum diisi'}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                      <Radio size={11} className="text-emerald-500" />
+                      <span>Radius Jangkauan</span>
+                    </div>
+                    <div className="font-mono text-xs font-bold text-[var(--text-primary)]">
+                      {newForm.radius || 50} meter
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                      <Globe size={11} className="text-amber-500" />
+                      <span>Zona Wilayah</span>
+                    </div>
+                    <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                      {newForm.zone || 'Kawasan Shorebase'}
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                      <CheckCircle2 size={11} className="text-emerald-500" />
+                      <span>Status Peta</span>
+                    </div>
+                    <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Siap Ditempatkan</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -625,7 +671,7 @@ const GatewayConfiguration = ({
               </div>
             </form>
           ) : (
-            <form onSubmit={handleSave} className="space-y-5">
+            <form onSubmit={handleSave} className="flex flex-col gap-5">
               {/* 1. KARTU LOKASI & KOORDINAT PETA (DAPAT DIEDIT PENUH) */}
               <div className="card-container p-5 bg-[var(--bg-surface)] border-[var(--border-subtle)] shadow-xs space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-[var(--border-subtle)]">
@@ -649,7 +695,7 @@ const GatewayConfiguration = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {/* Nama Titik Lokasi */}
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center gap-1">
                     <MapPin size={12} className="text-indigo-500" />
                     Nama Titik Lokasi Penempatan <span className="text-rose-500">*</span>
@@ -663,7 +709,25 @@ const GatewayConfiguration = ({
                     required
                   />
                   <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                    Deskripsi lokasi area sensor yang akan muncul pada popup dan label peta.
+                    Label nama area sensor pada peta &amp; popup monitor.
+                  </p>
+                </div>
+
+                {/* Zona Kawasan */}
+                <div>
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center gap-1">
+                    <Globe size={12} className="text-indigo-500" />
+                    Zona Kawasan Shorebase
+                  </label>
+                  <input
+                    type="text"
+                    value={form.zone}
+                    onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
+                    placeholder="Contoh: Central Office, Warehouses, Marine Jetty, dll"
+                    className="input-styled font-medium"
+                  />
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                    Kelompok zona operasional fasilitas darat / pelabuhan.
                   </p>
                 </div>
 
@@ -706,40 +770,46 @@ const GatewayConfiguration = ({
                     required
                   />
                 </div>
-
-                {/* Zona Kawasan */}
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5">
-                    Zona Kawasan Shorebase
-                  </label>
-                  <input
-                    type="text"
-                    value={form.zone}
-                    onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
-                    placeholder="Contoh: Central Office, Warehouses, Marine Jetty, dll"
-                    className="input-styled"
-                  />
-                </div>
               </div>
 
-              {/* Quick Presets Selector for Easy Coordinate Adjustment */}
-              <div className="p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-2">
-                <span className="text-xs font-bold text-[var(--text-secondary)] block">
-                  Pilihan Cepat Titik Lokasi Kawasan Shorebase (Klik untuk Menerapkan):
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {SHOREBASE_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => handleApplyPreset(preset)}
-                      className="px-2.5 py-1 rounded-lg bg-[var(--bg-surface)] hover:bg-[var(--brand-bg)] text-[var(--text-secondary)] hover:text-[var(--brand)] border border-[var(--border-subtle)] text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1"
-                      title={`Gunakan koordinat [${preset.lat}, ${preset.lng}]`}
-                    >
-                      <MapPin size={10} className="text-amber-500" />
-                      <span>{preset.name}</span>
-                    </button>
-                  ))}
+              {/* Strip Telemetri Geografis */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-3 border-t border-[var(--border-subtle)]">
+                <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] shadow-sm">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                    <MapPin size={11} className="text-indigo-500" />
+                    <span>Koordinat Titik</span>
+                  </div>
+                  <div className="font-mono text-xs font-bold text-[var(--text-primary)] truncate">
+                    {form.lat && form.lng ? `${Number(form.lat).toFixed(5)}, ${Number(form.lng).toFixed(5)}` : 'Belum diset'}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] shadow-sm">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                    <Radio size={11} className="text-emerald-500" />
+                    <span>Radius Deteksi</span>
+                  </div>
+                  <div className="font-mono text-xs font-bold text-[var(--text-primary)]">
+                    {form.radius || activeGw?.radius || 50} meter
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] shadow-sm">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                    <Globe size={11} className="text-amber-500" />
+                    <span>Zona Operasional</span>
+                  </div>
+                  <div className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                    {form.zone || 'Kawasan Shorebase'}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] shadow-sm">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)] mb-1">
+                    <CheckCircle2 size={11} className="text-emerald-500" />
+                    <span>Sinkronisasi Peta</span>
+                  </div>
+                  <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Aktif Terhubung</span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -9,82 +9,95 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
-const AreaSparkline = ({ color, id }) => (
-  <svg className="w-20 h-9 overflow-visible" viewBox="0 0 70 28" fill="none">
-    <defs>
-      <linearGradient id={`spark-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-        <stop offset="100%" stopColor={color} stopOpacity="0.0" />
-      </linearGradient>
-    </defs>
-    {/* Gradient fill under curve */}
-    <path
-      d="M2 24 L 2 16 Q 16 6, 28 14 T 50 8 T 68 12 L 68 26 L 2 26 Z"
-      fill={`url(#spark-grad-${id})`}
-    />
-    {/* Line stroke with high clarity */}
-    <path
-      d="M2 16 Q 16 6, 28 14 T 50 8 T 68 12"
-      stroke={color}
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.15))' }}
-    />
-  </svg>
-);
-
-const StatCard = ({ icon: Icon, label, value, sub, badgeType, badgeText, sparkColor, id, onClick }) => (
+const StatCard = ({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  badgeType,
+  badgeText,
+  accentColor = '#6366F1',
+  onClick,
+}) => (
   <div
     onClick={onClick}
-    className={`stat-card group ${onClick ? 'cursor-pointer hover:border-[var(--brand)] transition-all' : ''}`}
+    className={`stat-card group relative overflow-hidden ${
+      onClick ? 'cursor-pointer hover:border-[var(--brand)]' : ''
+    }`}
   >
-    {/* Card Top: 44px Icon Box & Status Pill */}
-    <div className="flex items-center justify-between mb-3.5">
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-[var(--brand-bg)] text-[var(--brand)] border border-[var(--brand-border)] shadow-xs group-hover:scale-105 transition-transform">
-        <Icon size={22} />
+    {/* Clean, razor-sharp top accent stripe (strictly contained, no color bleed) */}
+    <div
+      className="absolute left-0 right-0 top-0 h-[3px]"
+      style={{ backgroundColor: accentColor }}
+    />
+
+    {/* Card Top: Icon Container & Status Badge */}
+    <div className="mb-3.5 flex items-center justify-between">
+      <div
+        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border transition-transform duration-200 group-hover:scale-105"
+        style={{
+          backgroundColor: `${accentColor}14`,
+          borderColor: `${accentColor}28`,
+          color: accentColor,
+        }}
+      >
+        <Icon size={20} strokeWidth={2.2} />
       </div>
 
-      {badgeType === 'info' && (
-        <div className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--info-bg)] text-[var(--info)] border border-[var(--info-border)] shadow-xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--info)] animate-pulse" />
-          <span>{badgeText}</span>
-        </div>
-      )}
-
-      {badgeType === 'success' && (
-        <div className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--success-bg)] text-[var(--success)] border border-[var(--success-border)] shadow-xs">
-          <TrendingUp size={12} strokeWidth={2.5} />
-          <span>{badgeText}</span>
-        </div>
-      )}
-
-      {badgeType === 'warning' && (
-        <div className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--warning-bg)] text-[var(--warning)] border border-[var(--warning-border)] shadow-xs">
-          <AlertTriangle size={12} strokeWidth={2.5} />
-          <span>{badgeText}</span>
-        </div>
-      )}
-
-      {badgeType === 'danger' && (
-        <div className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--danger-bg)] text-[var(--danger)] border border-[var(--danger-border)] shadow-xs">
-          <TrendingDown size={12} strokeWidth={2.5} />
+      {badgeText && (
+        <div
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors"
+          style={{
+            backgroundColor: `${accentColor}12`,
+            borderColor: `${accentColor}30`,
+            color: accentColor,
+            borderWidth: '1px',
+          }}
+        >
+          {badgeType === 'info' && (
+            <span className="relative flex h-2 w-2">
+              <span
+                className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                style={{ backgroundColor: accentColor }}
+              />
+              <span
+                className="relative inline-flex h-2 w-2 rounded-full"
+                style={{ backgroundColor: accentColor }}
+              />
+            </span>
+          )}
+          {badgeType === 'success' && <TrendingUp size={12} strokeWidth={2.5} />}
+          {badgeType === 'warning' && <AlertTriangle size={12} strokeWidth={2.5} />}
+          {badgeType === 'danger' && <TrendingDown size={12} strokeWidth={2.5} />}
           <span>{badgeText}</span>
         </div>
       )}
     </div>
 
-    {/* Big Number & Sparkline with subtle area fill */}
-    <div className="flex items-end justify-between mb-1.5">
-      <div className="text-[32px] leading-tight font-extrabold text-[var(--text-primary)] tabular-nums tracking-tight">
+    {/* Big Number & Navigation Cue */}
+    <div className="mb-1 flex items-baseline justify-between">
+      <div className="text-[32px] font-black leading-none tracking-tight text-[var(--text-primary)] tabular-nums">
         {value}
       </div>
-      <AreaSparkline color={sparkColor} id={id} />
+      {onClick && (
+        <span
+          className="flex translate-x-1 items-center gap-0.5 text-[11px] font-bold opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"
+          style={{ color: accentColor }}
+        >
+          Lihat &rarr;
+        </span>
+      )}
     </div>
 
-    {/* Title & Description */}
-    <div className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--brand)] transition-colors">{label}</div>
-    {sub && <div className="text-xs text-[var(--text-muted)] mt-0.5 font-medium">{sub}</div>}
+    {/* Title & Context Description */}
+    <div className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-primary)]">
+      {label}
+    </div>
+    {sub && (
+      <div className="mt-1 truncate text-xs font-medium text-[var(--text-secondary)]">
+        {sub}
+      </div>
+    )}
   </div>
 );
 
@@ -98,8 +111,6 @@ const DashboardStats = ({
   offlineGateways = 0,
   onNavigate,
 }) => {
-  const hasIssues = offlineGateways > 0 || warningGateways > 0;
-
   const stats = [
     {
       id: 'active',
@@ -109,7 +120,7 @@ const DashboardStats = ({
       sub: 'Saat ini aktif dalam jangkauan',
       badgeType: 'info',
       badgeText: 'Live Area',
-      sparkColor: 'var(--brand)',
+      accentColor: '#6366F1', // Indigo Brand
       onClick: onNavigate ? () => onNavigate('cards') : null,
     },
     {
@@ -120,7 +131,7 @@ const DashboardStats = ({
       sub: 'Klik untuk kelola & registrasi',
       badgeType: 'success',
       badgeText: 'Database',
-      sparkColor: 'var(--success)',
+      accentColor: '#10B981', // Emerald Success
       onClick: onNavigate ? () => onNavigate('registered-cards') : null,
     },
     {
@@ -143,12 +154,13 @@ const DashboardStats = ({
           : warningGateways > 0
           ? `${warningGateways} warning`
           : 'Normal',
-      sparkColor:
+      accentColor:
         offlineGateways > 0
-          ? 'var(--danger)'
+          ? '#EF4444' // Rose Danger
           : warningGateways > 0
-          ? 'var(--warning)'
-          : 'var(--success)',
+          ? '#F59E0B' // Amber Warning
+          : '#10B981', // Emerald Success
+      onClick: onNavigate ? () => onNavigate('config') : null,
     },
     {
       id: 'activity',
@@ -157,13 +169,14 @@ const DashboardStats = ({
       value: totalDetectionsToday,
       sub: 'Log pembacaan sensor hari ini',
       badgeType: 'success',
-      badgeText: '+12% vs kemarin',
-      sparkColor: 'var(--success)',
+      badgeText: 'Hari ini',
+      accentColor: '#0EA5E9', // Sky Cyan
+      onClick: onNavigate ? () => onNavigate('history') : null,
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+    <div className="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
       {stats.map((stat) => (
         <StatCard key={stat.id} {...stat} />
       ))}

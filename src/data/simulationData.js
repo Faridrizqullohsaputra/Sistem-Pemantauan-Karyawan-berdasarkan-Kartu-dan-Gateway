@@ -13,6 +13,7 @@ export const SHOREBASE_PRESETS = [
   { id: 'GW-05', name: 'Helipad & Evakuasi Medis', lat: -6.86890, lng: 112.41620, zone: 'Helipad / HSE' },
   { id: 'GW-06', name: 'Gerbang Masuk Jl. Daendels', lat: -6.87220, lng: 112.41730, zone: 'Main Security Gate' },
   { id: 'GW-07', name: 'Open Yard & Staging Area', lat: -6.86490, lng: 112.41520, zone: 'OCTG Yard' },
+  { id: 'GW-08', name: 'Pos Pantau & Gerbang Barat', lat: -6.86550, lng: 112.41380, zone: 'West Gate / Perimeter' },
 ];
 
 // Gateway devices with real IPs in network 10.1.5.x
@@ -170,6 +171,28 @@ export const GATEWAYS = [
     detectedCount: 0,
     posX: 50,
     posY: 10,
+  },
+  {
+    id: 'GW-08',
+    name: 'Gateway Deteksi 08',
+    ip: '10.1.5.210',
+    url: 'http://10.1.5.210',
+    location: 'Titik Deteksi 08 — Pos Pantau & Gerbang Barat',
+    floor: 1,
+    lat: -6.86550,
+    lng: 112.41380,
+    radius: 50,
+    status: 'connected',
+    latency: 16,
+    lastSeen: new Date().toISOString(),
+    serviceAccess: 'HTTP',
+    authType: 'Bearer Token',
+    maxPacketSize: 1024,
+    uptime: '4d 9h 12m',
+    signalStrength: 86,
+    detectedCount: 0,
+    posX: 15,
+    posY: 50,
   },
 ];
 
