@@ -27,8 +27,14 @@ const HardwareCardModal = ({
   isScanningBLE = false,
 }) => {
   const [selectedGwId, setSelectedGwId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('company_last_selected_gw');
+      if (saved && (saved === 'ALL' || gateways.some(g => g.id === saved))) return saved;
+    } catch {}
+    const gw08 = gateways.find(g => g.id === 'GW-08');
+    if (gw08) return 'GW-08';
     const firstConnected = gateways.find(g => g.status === 'connected');
-    return firstConnected?.id || gateways[0]?.id || 'GW-01';
+    return firstConnected?.id || gateways[0]?.id || null;
   });
   const [selectedCardId, setSelectedCardId] = useState('ALL');
   const [copied, setCopied] = useState(false);
@@ -48,11 +54,17 @@ const HardwareCardModal = ({
         setSelectedCardId(activeCards[0]?.cardId || 'ALL');
       }
 
-      // Pastikan gateway default adalah gateway yang valid dan online jika ada
+      // Pastikan gateway default adalah gateway yang valid (utamakan GW-08 jika belum ada pilihan)
       setSelectedGwId(prev => {
-        if (prev && prev !== 'ALL' && gateways.some(g => g.id === prev)) return prev;
+        if (prev && (prev === 'ALL' || gateways.some(g => g.id === prev))) return prev;
+        try {
+          const saved = localStorage.getItem('company_last_selected_gw');
+          if (saved && (saved === 'ALL' || gateways.some(g => g.id === saved))) return saved;
+        } catch {}
+        const gw08 = gateways.find(g => g.id === 'GW-08');
+        if (gw08) return 'GW-08';
         const online = gateways.find(g => g.status === 'connected');
-        return online?.id || gateways[0]?.id || 'GW-01';
+        return online?.id || gateways[0]?.id || null;
       });
     }
   }, [isOpen, initialCardId, activeCards.length, gateways]);
@@ -61,11 +73,11 @@ const HardwareCardModal = ({
 
   const selectedGw = isAllGateways
     ? null
-    : (gateways.find(g => g.id === selectedGwId) || gateways[0] || { id: 'GW-01', name: 'Gateway Deteksi 01', location: 'Area Perusahaan', ip: '10.1.5.13', radius: 50 });
+    : (gateways.find(g => g.id === selectedGwId) || gateways[0] || null);
   const selectedCard = selectedCardId !== 'ALL' ? activeCards.find(c => c.cardId === selectedCardId) : null;
   const targetCardIdForCurl = selectedCard ? selectedCard.cardId : (activeCards[0]?.cardId || 'BC572914269D');
 
-  const effectiveCurlGwId = selectedGw?.id || (gateways[0]?.id || 'GW-01');
+  const effectiveCurlGwId = selectedGw?.id || gateways[0]?.id || '';
   const curlCommand = `curl -X POST http://localhost:5173/api/gateway/report \\
   -H "Content-Type: application/json" \\
   -d '{"cardId":"${targetCardIdForCurl}","gatewayId":"${effectiveCurlGwId}","rssi":-58}'`;
@@ -77,7 +89,7 @@ const HardwareCardModal = ({
   };
 
   const handleCaptureCard = () => {
-    if (selectedCardId === 'ALL') {
+    if (selectedCardId === 'ALL' || isAllGateways) {
       if (onDetectAllCards) {
         onDetectAllCards(selectedGwId);
       } else {
@@ -136,28 +148,30 @@ const HardwareCardModal = ({
               <label className="text-xs font-bold text-[var(--text-primary)] block mb-1.5 flex items-center justify-between">
                 <span>Gateway Sensor Penerima:</span>
                 <span className={`text-[10px] font-semibold flex items-center gap-1 ${
-                  selectedGw?.status === 'connected' ? 'text-emerald-500' : 'text-rose-500'
+                  isAllGateways ? 'text-indigo-600 dark:text-indigo-400 font-bold' : selectedGw?.status === 'connected' ? 'text-emerald-500' : 'text-rose-500'
                 }`}>
-                  {isAllGateways ? '🌐 Multi-Gateway' : selectedGw?.status === 'connected' ? '● Online' : '▲ Offline / Error'}
+                  {isAllGateways ? '🌐 Multi-Gateway (Semua Unit)' : selectedGw?.status === 'connected' ? '● Online' : '▲ Offline / Error'}
                 </span>
               </label>
               <select
                 value={selectedGwId}
-                onChange={(e) => setSelectedGwId(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedGwId(val);
+                  try { localStorage.setItem('company_last_selected_gw', val); } catch {}
+                }}
                 className={`w-full input-styled py-2 px-3 text-xs font-medium cursor-pointer ${
                   isAllGateways ? 'border-indigo-500/50 bg-indigo-500/5 font-bold text-indigo-600 dark:text-indigo-400' : ''
                 }`}
               >
+                <option value="ALL">
+                  🌐 Semua Gateway ({gateways.length} Unit Gateway)
+                </option>
                 {gateways.map(gw => (
                   <option key={gw.id} value={gw.id}>
                     {gw.id} — {gw.name} ({gw.status === 'connected' ? 'Online' : 'Error / Offline'})
                   </option>
                 ))}
-                {activeCards.length > 1 && (
-                  <option value="ALL">
-                    🌐 Sebar Kartu ke Semua Gateway ({gateways.length} Gateway)
-                  </option>
-                )}
               </select>
             </div>
 
@@ -239,7 +253,7 @@ const HardwareCardModal = ({
                 </div>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 mt-1 text-[11px] text-[var(--text-secondary)] font-mono">
                   <div>ID Kartu: <strong className="text-indigo-600 dark:text-indigo-400">{selectedCard.cardId}</strong></div>
-                  <div>NIK/Tag: <strong>{selectedCard.employeeId || '—'}</strong></div>
+                  <div>No. Kartu: <strong>{selectedCard.employeeId || '—'}</strong></div>
                   <div>Dept: <strong>{selectedCard.department || 'Operasional'}</strong></div>
                   <div>Jabatan: <strong>{selectedCard.role || selectedCard.division || 'Staff'}</strong></div>
                 </div>

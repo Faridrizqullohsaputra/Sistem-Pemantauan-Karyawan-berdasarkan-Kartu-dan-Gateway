@@ -45,11 +45,41 @@ export const useSimulation = () => {
           const existingIds = new Set(parsed.map(g => g.id));
           const mergedList = parsed.map(savedGw => {
             const defGw = GATEWAYS.find(d => d.id === savedGw.id);
-            return defGw ? { ...defGw, ...savedGw } : savedGw;
+            if (!defGw) return savedGw;
+
+            // Perbaiki jika savedGw mewarisi koordinat default GW-01 (-6.8678, 112.4168)
+            // padahal defGw memiliki koordinat uniknya sendiri (GW-06, GW-07, GW-08)
+            const hasDuplicateDefaultCoords =
+              defGw.id !== 'GW-01' &&
+              Number(savedGw.lat).toFixed(4) === '-6.8678' &&
+              Number(savedGw.lng).toFixed(4) === '112.4168';
+
+            const validLat = (!savedGw.lat || isNaN(Number(savedGw.lat)) || hasDuplicateDefaultCoords)
+              ? defGw.lat
+              : Number(savedGw.lat);
+            const validLng = (!savedGw.lng || isNaN(Number(savedGw.lng)) || hasDuplicateDefaultCoords)
+              ? defGw.lng
+              : Number(savedGw.lng);
+
+            return {
+              ...defGw,
+              ...savedGw,
+              lat: validLat,
+              lng: validLng,
+            };
           });
-          // Pastikan semua gateway standar (termasuk GW-08) tersedia jika belum ada di localStorage
+
+          // Jangan tambahkan kembali gateway yang sudah dihapus user
+          // (tersimpan di 'company_gateways_deleted' agar persisten saat refresh)
+          let deletedIds = new Set();
+          try {
+            const del = localStorage.getItem('company_gateways_deleted');
+            if (del) deletedIds = new Set(JSON.parse(del));
+          } catch {}
+
+          // Hanya tambahkan gateway default yang BELUM pernah dihapus user
           for (const defGw of GATEWAYS) {
-            if (!existingIds.has(defGw.id)) {
+            if (!existingIds.has(defGw.id) && !deletedIds.has(defGw.id)) {
               mergedList.push(defGw);
             }
           }
@@ -264,27 +294,42 @@ export const useSimulation = () => {
     // Tentukan gateway target secara spesifik
     let targetGw = null;
     if (targetGatewayId && targetGatewayId !== 'ALL') {
-      targetGw = gateways.find(g => g.id === targetGatewayId);
-    }
-    if (!targetGw) {
+      const cleanTarget = String(targetGatewayId).trim();
+      targetGw = gateways.find(g =>
+        g.id.toUpperCase() === cleanTarget.toUpperCase() ||
+        g.id.replace('GW-', '') === cleanTarget.replace(/^GW-?/i, '').padStart(2, '0') ||
+        g.ip === cleanTarget ||
+        g.name.toLowerCase() === cleanTarget.toLowerCase()
+      );
+
+      // JIKA targetGatewayId diberikan tetapi tidak ditemukan di daftar gateway:
+      // TOLAK event, JANGAN diam-diam dialihkan ke gateway lain!
+      if (!targetGw) {
+        console.error(`[DETECTION_ERROR] Gateway "${targetGatewayId}" tidak dikenal dalam sistem. Event kartu ${cleanId} ditolak.`);
+        addNotification(
+          'error',
+          'Deteksi Ditolak: Gateway Tidak Dikenal',
+          `Kartu ${cleanId} tidak dapat dialokasikan karena Gateway "${targetGatewayId}" tidak terdaftar dalam sistem.`
+        );
+        return false;
+      }
+    } else {
+      // Hanya jika targetGatewayId sama sekali tidak dispesifikasikan (simulasi bebas):
       const connectedGateways = gateways.filter(g => g.status === 'connected');
       targetGw = connectedGateways[0] || gateways[0];
     }
 
-    // Jika gateway target berstatus error/disconnected, alihkan ke gateway aktif terdekat
+    // Pastikan kartu selalu dicatat di gateway target yang mendeteksi (TIDAK BOLEH dialihkan ke gateway lain)
     let effectiveGw = targetGw;
-    if (effectiveGw && (effectiveGw.status === 'error' || effectiveGw.status === 'disconnected')) {
-      const activeGateways = gateways.filter(g => g.status === 'connected');
-      if (activeGateways.length > 0) {
-        const nearestResult = findNearestAvailableGateway(effectiveGw, activeGateways);
-        const nearestGw = nearestResult?.gateway || activeGateways[0];
-        addNotification(
-          'warning',
-          `Gateway ${effectiveGw.name} Sedang Error`,
-          `Deteksi kartu dialihkan ke gateway aktif terdekat: ${nearestGw.name} (${nearestGw.id}).`
-        );
-        effectiveGw = nearestGw;
-      }
+    if (effectiveGw && effectiveGw.status !== 'connected') {
+      // Jika gateway sedang ditandai offline/error tetapi berhasil menerima paket data dari sensor,
+      // pulihkan statusnya menjadi connected secara otomatis
+      setGateways(prev => prev.map(g =>
+        g.id === effectiveGw.id
+          ? { ...g, status: 'connected', issue: undefined, lastSeen: nowIso }
+          : g
+      ));
+      effectiveGw = { ...effectiveGw, status: 'connected', issue: undefined, lastSeen: nowIso };
     }
 
     // === KARTU TIDAK TERDAFTAR: tangkap sebagai sinyal asing ===
@@ -481,13 +526,32 @@ export const useSimulation = () => {
     }
 
     // Specific Gateway detection for all active cards
-    let gateway = gateways.find(g => g.id === targetGatewayId) || availableGateways[0];
-    if (gateway.status === 'error' || gateway.status === 'disconnected') {
-      const nearestResult = findNearestAvailableGateway(gateway, availableGateways);
-      if (nearestResult) {
-        gateway = nearestResult.gateway;
-        addNotification('warning', 'Gateway Error', `Gateway ${targetGatewayId} sedang error (RTO), dialihkan ke ${gateway.name} (${gateway.id}).`);
-      }
+    const cleanTarget = String(targetGatewayId || '').trim();
+    let gateway = gateways.find(g =>
+      g.id.toUpperCase() === cleanTarget.toUpperCase() ||
+      g.id.replace('GW-', '') === cleanTarget.replace(/^GW-?/i, '').padStart(2, '0') ||
+      g.ip === cleanTarget ||
+      g.name.toLowerCase() === cleanTarget.toLowerCase()
+    );
+
+    if (!gateway) {
+      console.error(`[DETECT_ALL_ERROR] Gateway "${targetGatewayId}" tidak dikenal.`);
+      addNotification(
+        'error',
+        'Deteksi Ditolak: Gateway Tidak Dikenal',
+        `Gateway "${targetGatewayId}" tidak terdaftar dalam sistem.`
+      );
+      return false;
+    }
+
+    // Pastikan status gateway aktif (connected) karena terbukti menerima sinyal kartu
+    if (gateway.status !== 'connected') {
+      setGateways(prev => prev.map(g =>
+        g.id === gateway.id
+          ? { ...g, status: 'connected', issue: undefined, lastSeen: nowIso }
+          : g
+      ));
+      gateway = { ...gateway, status: 'connected', issue: undefined, lastSeen: nowIso };
     }
 
     const newDetections = [];
@@ -581,11 +645,13 @@ export const useSimulation = () => {
       `Kartu ${newCard.cardId} atas nama ${newCard.name} telah terdaftar dan siap dideteksi.`
     );
 
-    // If autoDetect requested and active, trigger detection right away
+    // If autoDetect requested and active, notify that card is ready for gateway detection
     if (autoDetect && newCard.status === 'active') {
-      setTimeout(() => {
-        detectCardById(newCard.cardId);
-      }, 600);
+      addNotification(
+        'info',
+        'Kartu Siap Dideteksi',
+        `Kartu ${newCard.cardId} aktif. Dekatkan ke Gateway (misal GW-08) untuk mendeteksi lokasi real-time.`
+      );
     }
 
     return true;
@@ -935,6 +1001,13 @@ export const useSimulation = () => {
       const updated = [...prev, gateway];
       try {
         localStorage.setItem('company_gateways_config', JSON.stringify(updated));
+        // Hapus dari daftar deleted jika user menambahkan gateway dengan ID sama kembali
+        const del = localStorage.getItem('company_gateways_deleted');
+        if (del) {
+          const deletedSet = new Set(JSON.parse(del));
+          deletedSet.delete(gateway.id);
+          localStorage.setItem('company_gateways_deleted', JSON.stringify([...deletedSet]));
+        }
       } catch (e) {}
       return updated;
     });
@@ -953,6 +1026,11 @@ export const useSimulation = () => {
       const updated = prev.filter(g => g.id !== gwId);
       try {
         localStorage.setItem('company_gateways_config', JSON.stringify(updated));
+        // Simpan ID yang dihapus agar tidak muncul lagi saat refresh
+        const del = localStorage.getItem('company_gateways_deleted');
+        const deletedSet = new Set(del ? JSON.parse(del) : []);
+        deletedSet.add(gwId);
+        localStorage.setItem('company_gateways_deleted', JSON.stringify([...deletedSet]));
       } catch (e) {}
       return updated;
     });
@@ -979,7 +1057,7 @@ export const useSimulation = () => {
   }, [addNotification]);
 
   // Scan real Bluetooth BLE device (supports all registered cards)
-  const scanBluetoothDevice = useCallback(async (targetGatewayId = 'GW-01', specificCardId = null) => {
+  const scanBluetoothDevice = useCallback(async (targetGatewayId = null, specificCardId = null) => {
     if (!navigator.bluetooth) {
       addNotification(
         'warning',
@@ -1046,7 +1124,11 @@ export const useSimulation = () => {
         try {
           const payload = JSON.parse(event.data);
           if (payload.type === 'CARD_DETECTION' && payload.cardId) {
-            detectCardById(payload.cardId, payload.gatewayId || 'GW-01');
+            if (!payload.gatewayId) {
+              console.error('[SSE-STREAM] Event diabaikan: gatewayId kosong pada payload:', payload);
+              return;
+            }
+            detectCardById(payload.cardId, payload.gatewayId);
           }
         } catch (err) {
           console.error('Error parsing SSE payload:', err);

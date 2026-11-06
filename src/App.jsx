@@ -100,6 +100,7 @@ function App() {
             theme={theme}
             onAddNotification={addNotification}
             onUpdateGateway={updateGatewayDevice}
+            onDetectCard={detectCardById}
             syncNetworkData={syncNetworkData}
             isSyncing={isSyncing}
           />
@@ -108,6 +109,8 @@ function App() {
         return (
           <CardIdentity
             activeDetections={activeDetections}
+            gateways={gateways}
+            onDetectCard={detectCardById}
             onNavigate={setActivePage}
             theme={theme}
           />

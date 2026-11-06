@@ -35,7 +35,7 @@ const getAvatarStyle = (cardId = '') => {
   return PALETTES[code % PALETTES.length];
 };
 
-const DetectionCard = ({ detection }) => {
+const DetectionCard = ({ detection, gateways = [], onDetectCard }) => {
   const rawHolder = getCardHolder(detection.cardId);
   const holder = rawHolder || {
     cardId: detection.cardId,
@@ -47,7 +47,7 @@ const DetectionCard = ({ detection }) => {
     avatarInitials: (detection.cardHolder || detection.cardId || 'ID').slice(0, 2).toUpperCase(),
   };
 
-  const rawGw = getGateway(detection.gatewayId);
+  const rawGw = (gateways && gateways.length > 0 ? gateways.find(g => g.id === detection.gatewayId) : null) || getGateway(detection.gatewayId);
   const gw = rawGw || {
     id: detection.gatewayId,
     name: detection.gatewayId || 'Gateway Deteksi',
@@ -124,6 +124,28 @@ const DetectionCard = ({ detection }) => {
           <span className="font-mono font-medium text-[var(--text-primary)]">{formatTime(detection.detectedAt)}</span>
           <span className="text-[var(--text-muted)] ml-1">({timeAgo(detection.detectedAt)})</span>
         </div>
+
+        {/* Live Gateway Position Switcher */}
+        {onDetectCard && gateways.length > 0 && (
+          <div className="col-span-2 pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-[var(--text-muted)] flex items-center gap-1">
+              <Radio size={11} className="text-[var(--brand)] animate-pulse" />
+              Pindah Gateway:
+            </span>
+            <select
+              value={gw.id}
+              onChange={(e) => onDetectCard(detection.cardId, e.target.value)}
+              className="text-xs font-bold py-1 px-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--brand)] transition-colors cursor-pointer"
+              title="Pindahkan deteksi kartu ini ke Gateway lain secara live"
+            >
+              {gateways.map(g => (
+                <option key={g.id} value={g.id}>
+                  {g.id} — {g.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -141,7 +163,7 @@ const DetectionCard = ({ detection }) => {
   );
 };
 
-const CardIdentity = ({ activeDetections = [], onNavigate }) => {
+const CardIdentity = ({ activeDetections = [], onNavigate, gateways = [], onDetectCard }) => {
   if (activeDetections.length === 0) {
     return (
       <div className="card-container p-12 text-center">
@@ -193,7 +215,12 @@ const CardIdentity = ({ activeDetections = [], onNavigate }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {activeDetections.map(det => (
-          <DetectionCard key={det.id} detection={det} />
+          <DetectionCard
+            key={det.id}
+            detection={det}
+            gateways={gateways}
+            onDetectCard={onDetectCard}
+          />
         ))}
       </div>
     </div>

@@ -117,9 +117,9 @@ const HourlyActivityChart = ({ historyRecords }) => {
 };
 
 /* ── Activity Item ── */
-const RecentActivityItem = ({ detection }) => {
+const RecentActivityItem = ({ detection, gateways = [], onDetectCard }) => {
   const holder = getCardHolder(detection.cardId);
-  const gw = getGateway(detection.gatewayId);
+  const gw = getGateway(detection.gatewayId) || gateways.find(g => g.id === detection.gatewayId);
   const avatarStyle = getAvatarStyle(detection.cardId);
 
   return (
@@ -140,10 +140,26 @@ const RecentActivityItem = ({ detection }) => {
             ({holder?.department})
           </span>
         </div>
-        <div className="text-xs text-[var(--text-secondary)] mt-1 flex items-center gap-1.5 truncate">
+        <div className="text-xs text-[var(--text-secondary)] mt-1 flex items-center gap-1.5 flex-wrap">
           <span className="font-semibold text-[var(--text-primary)]">{gw?.name}</span>
           <span className="text-[var(--border-strong)]">•</span>
           <span className="truncate">{gw?.location}</span>
+          {/* Pindah Gateway selector */}
+          {onDetectCard && gateways.length > 0 && (
+            <select
+              value={detection.gatewayId}
+              onChange={(e) => onDetectCard(detection.cardId, e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="ml-auto text-[10px] font-bold py-0.5 px-2 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] hover:border-[var(--brand)] transition-colors cursor-pointer"
+              title="Pindahkan kartu ini ke Gateway lain"
+            >
+              {gateways.map(g => (
+                <option key={g.id} value={g.id}>
+                  {g.id} — {g.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -178,6 +194,7 @@ const DashboardPage = ({
   onAddNotification,
   syncNetworkData,
   isSyncing,
+  onDetectCard,
 }) => {
   const connectedGateways = gateways.filter(g => g.status === 'connected').length;
   const warningGateways = gateways.filter(g => g.status === 'connecting').length;
@@ -322,7 +339,12 @@ const DashboardPage = ({
             ) : (
               <div className="divide-y divide-[var(--border-subtle)]">
                 {filteredDetections.slice(0, 6).map(det => (
-                  <RecentActivityItem key={det.id} detection={det} />
+                  <RecentActivityItem
+                    key={det.id}
+                    detection={det}
+                    gateways={gateways}
+                    onDetectCard={onDetectCard}
+                  />
                 ))}
                 {filteredDetections.length > 6 && (
                   <button

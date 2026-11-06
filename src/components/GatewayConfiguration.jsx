@@ -74,7 +74,7 @@ const GatewayConfiguration = ({
   initialSelectedGwId = null,
 }) => {
   const [selectedGwId, setSelectedGwId] = useState(
-    initialSelectedGwId || gateways[0]?.id || 'GW-01'
+    initialSelectedGwId || gateways[0]?.id
   );
 
   // Mode: false = edit existing, true = add new
@@ -285,7 +285,7 @@ const GatewayConfiguration = ({
     onAddNotification?.('info', 'Uji Jaringan', `Menguji komunikasi jaringan ke ${targetIp || form.url}...`);
 
     try {
-      const res = await fetch(`/api/gateway/ping?ip=${encodeURIComponent(targetIp)}&id=${encodeURIComponent(activeGw?.id || selectedGwId || 'GW-01')}`);
+      const res = await fetch(`/api/gateway/ping?ip=${encodeURIComponent(targetIp)}&id=${encodeURIComponent(activeGw?.id || selectedGwId || '')}`);
       const data = await res.json();
 
       if (data.success) {

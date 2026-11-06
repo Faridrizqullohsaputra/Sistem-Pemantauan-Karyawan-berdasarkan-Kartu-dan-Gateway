@@ -512,20 +512,20 @@ const CardManagement = ({
                   </span>
                 </div>
 
-                {/* ID Karyawan / Visitor ID */}
+                {/* Nomor Kartu */}
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">
-                    Nomor Induk / ID Pengenal
+                    Nomor Kartu
                   </label>
                   <input
                     type="text"
-                    placeholder="Contoh: EMP-2024-055 atau VIS-2024-001"
+                    placeholder="Contoh: 562427 atau Nomor Seri Kartu"
                     value={form.employeeId}
                     onChange={e => setForm(prev => ({ ...prev, employeeId: e.target.value.toUpperCase() }))}
                     className="input-styled w-full uppercase font-mono text-xs py-2 pl-3"
                   />
                   <span className="text-[10px] text-[var(--text-muted)] mt-1 block">
-                    Nomor induk karyawan (NIK) atau nomor registrasi tamu
+                    Nomor fisik yang tercetak pada kartu
                   </span>
                 </div>
               </div>
@@ -696,8 +696,8 @@ const CardManagement = ({
                     <div className="font-bold tracking-widest">{form.cardId || 'CARD-00000'}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[9px] opacity-70 uppercase">NOMOR INDUK</div>
-                    <div className="font-bold">{form.employeeId || 'EMP-XXXX'}</div>
+                    <div className="text-[9px] opacity-70 uppercase">NOMOR KARTU</div>
+                    <div className="font-bold">{form.employeeId || 'NO-KARTU'}</div>
                   </div>
                 </div>
               </div>
@@ -729,7 +729,7 @@ const CardManagement = ({
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 type="text"
-                placeholder="Cari nama, ID Kartu, NIK, atau departemen..."
+                placeholder="Cari nama, ID Kartu, Nomor Kartu, atau departemen..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="input-styled pl-9 pr-8 py-2 text-xs w-full"
@@ -819,7 +819,7 @@ const CardManagement = ({
               <thead>
                 <tr>
                   <th>Pemegang Kartu</th>
-                  <th>ID Kartu &amp; NIK</th>
+                  <th>ID Kartu &amp; Nomor Kartu</th>
                   <th>Departemen &amp; Role</th>
                   <th>Tipe</th>
                   <th>Status Deteksi Live</th>
@@ -1045,15 +1045,16 @@ const CardManagement = ({
                   </div>
                 </div>
 
-                {/* Nomor Induk Karyawan */}
+                {/* Nomor Kartu */}
                 <div>
                   <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">
-                    Nomor Induk / NIK
+                    Nomor Kartu
                   </label>
                   <div className="relative">
                     <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                     <input
                       type="text"
+                      placeholder="Nomor kartu fisik"
                       value={editForm.employeeId}
                       onChange={e => setEditForm(prev => ({ ...prev, employeeId: e.target.value }))}
                       className="input-styled w-full text-xs py-2 pl-9 pr-3 font-mono"
